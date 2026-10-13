@@ -13,7 +13,7 @@
 **Deviations from the spec (all deliberate):**
 
 1. **TypeScript is pinned to 6.0.x, not 7.x.** typescript-eslint 8.71 declares `typescript: >=4.8.4 <6.1.0`, so TS 7 would break type-aware linting. Recorded in ADR 0013.
-2. **`pr-title` is its own workflow** (`pr-title.yml`), not a job in `ci.yml`. It has to re-run when a PR title is *edited*, and re-running the full CI on a title edit would be waste.
+2. **`pr-title` is its own workflow** (`pr-title.yml`), not a job in `ci.yml`. It has to re-run when a PR title is _edited_, and re-running the full CI on a title edit would be waste.
 3. **`packages/shared` (the notes schemas) moves forward from M2 into M1,** so the pipeline has real code and real tests to gate.
 4. **`npm run lint` also runs shellcheck and actionlint,** so shell scripts and workflows are gated too.
 5. **New ADRs are numbered after the 12 planned in spec §17.** M1 writes 0001, 0002 and 0011 (planned) and 0013 (new).
@@ -34,36 +34,37 @@
 
 ## File map (what M1 creates)
 
-| Path | Responsibility |
-|---|---|
+| Path                                                                | Responsibility                                                                         |
+| ------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | `.gitignore`, `.gitattributes`, `.editorconfig`, `.nvmrc`, `.npmrc` | Repo hygiene: ignored files, LF line endings, editor defaults, Node 24, strict engines |
-| `LICENSE` | MIT |
-| `package.json`, `package-lock.json` | Workspaces, root scripts, dev tooling, lint-staged config |
-| `tsconfig.base.json` | Strict compiler options shared by every workspace |
-| `tsconfig.json` | Solution file: project references to every TS workspace |
-| `.prettierrc.json`, `.prettierignore` | Formatting rules |
-| `eslint.config.js` | Flat ESLint config, type-aware |
-| `.husky/pre-commit` | Runs lint-staged |
-| `packages/shared/{package.json,tsconfig.json,vitest.config.ts}` | `@atlas/shared` workspace |
-| `packages/shared/src/notes.ts` | Zod schemas: `CreateNoteInput`, `Note`, limits |
-| `packages/shared/src/notes.test.ts` | Schema tests |
-| `packages/shared/src/index.ts` | Public exports |
-| `AGENTS.md`, `CLAUDE.md` | Agent + human working guide |
-| `README.md`, `SECURITY.md` | Project front page, vulnerability reporting |
-| `.github/CODEOWNERS`, `.github/pull_request_template.md` | Ownership, PR checklist |
-| `docs/adr/0000-template.md`, `0001-…`, `0002-…`, `0011-…`, `0013-…` | Architecture decision records |
-| `scripts/coverage-summary.mjs` | Writes Vitest coverage as a Markdown table for the CI job summary |
-| `.github/workflows/ci.yml` | `check` + `dependency-review` jobs, reusable by deploy later |
-| `.github/workflows/pr-title.yml` | Conventional Commits check on PR titles |
-| `.github/workflows/codeql.yml` | CodeQL for `javascript-typescript` and `actions` |
-| `.github/dependabot.yml` | Weekly npm + GitHub Actions updates |
-| `scripts/bootstrap.sh` | `repo` target: merge settings, security features, `main` ruleset |
+| `LICENSE`                                                           | MIT                                                                                    |
+| `package.json`, `package-lock.json`                                 | Workspaces, root scripts, dev tooling, lint-staged config                              |
+| `tsconfig.base.json`                                                | Strict compiler options shared by every workspace                                      |
+| `tsconfig.json`                                                     | Solution file: project references to every TS workspace                                |
+| `.prettierrc.json`, `.prettierignore`                               | Formatting rules                                                                       |
+| `eslint.config.js`                                                  | Flat ESLint config, type-aware                                                         |
+| `.husky/pre-commit`                                                 | Runs lint-staged                                                                       |
+| `packages/shared/{package.json,tsconfig.json,vitest.config.ts}`     | `@atlas/shared` workspace                                                              |
+| `packages/shared/src/notes.ts`                                      | Zod schemas: `CreateNoteInput`, `Note`, limits                                         |
+| `packages/shared/src/notes.test.ts`                                 | Schema tests                                                                           |
+| `packages/shared/src/index.ts`                                      | Public exports                                                                         |
+| `AGENTS.md`, `CLAUDE.md`                                            | Agent + human working guide                                                            |
+| `README.md`, `SECURITY.md`                                          | Project front page, vulnerability reporting                                            |
+| `.github/CODEOWNERS`, `.github/pull_request_template.md`            | Ownership, PR checklist                                                                |
+| `docs/adr/0000-template.md`, `0001-…`, `0002-…`, `0011-…`, `0013-…` | Architecture decision records                                                          |
+| `scripts/coverage-summary.mjs`                                      | Writes Vitest coverage as a Markdown table for the CI job summary                      |
+| `.github/workflows/ci.yml`                                          | `check` + `dependency-review` jobs, reusable by deploy later                           |
+| `.github/workflows/pr-title.yml`                                    | Conventional Commits check on PR titles                                                |
+| `.github/workflows/codeql.yml`                                      | CodeQL for `javascript-typescript` and `actions`                                       |
+| `.github/dependabot.yml`                                            | Weekly npm + GitHub Actions updates                                                    |
+| `scripts/bootstrap.sh`                                              | `repo` target: merge settings, security features, `main` ruleset                       |
 
 ---
 
 ### Task 0: Commit this plan
 
 **Files:**
+
 - Create: `docs/plans/2026-10-13-m1-repo-foundation.md` (this file)
 
 - [ ] **Step 1: Commit**
@@ -127,6 +128,7 @@ version: 0.x.x
 ### Task 2: Repo hygiene files
 
 **Files:**
+
 - Create: `.gitignore`, `.gitattributes`, `.editorconfig`, `.nvmrc`, `.npmrc`, `LICENSE`
 
 - [ ] **Step 1: Create `.gitignore`**
@@ -233,6 +235,7 @@ Expected: `6 files changed`.
 ### Task 3: Root package and TypeScript base config
 
 **Files:**
+
 - Create: `package.json`, `tsconfig.base.json`
 - Generated: `package-lock.json`
 
@@ -320,6 +323,7 @@ git commit -m "build: add npm workspaces root and strict TypeScript base config"
 ### Task 4: Prettier
 
 **Files:**
+
 - Create: `.prettierrc.json`, `.prettierignore`
 - Modify: `package.json` (scripts)
 - Reformat: all existing Markdown, JSON and YAML
@@ -375,6 +379,7 @@ git commit -m "style: add Prettier and format existing files" -m "Co-Authored-By
 ### Task 5: ESLint (flat config, type-aware)
 
 **Files:**
+
 - Create: `eslint.config.js`
 - Modify: `package.json` (scripts)
 
@@ -449,6 +454,7 @@ git commit -m "build: add type-aware ESLint flat config" -m "Co-Authored-By: Cla
 ### Task 6: `@atlas/shared` with note schemas (TDD)
 
 **Files:**
+
 - Create: `packages/shared/package.json`, `packages/shared/tsconfig.json`, `packages/shared/vitest.config.ts`
 - Create: `packages/shared/src/notes.test.ts`, `packages/shared/src/notes.ts`, `packages/shared/src/index.ts`
 - Create: `tsconfig.json` (root solution file)
@@ -695,6 +701,7 @@ git commit -m "feat(shared): add note schemas with tests" -m "Co-Authored-By: Cl
 ### Task 7: Root test scripts and `npm run check`
 
 **Files:**
+
 - Modify: `package.json` (scripts)
 
 - [ ] **Step 1: Add the fan-out scripts and the definition of done**
@@ -726,6 +733,7 @@ git commit -m "build: add root test scripts and npm run check" -m "Co-Authored-B
 ### Task 8: Pre-commit hook (husky + lint-staged)
 
 **Files:**
+
 - Create: `.husky/pre-commit`
 - Modify: `package.json` (`prepare` script, `lint-staged` config)
 
@@ -765,11 +773,12 @@ Expected: lint-staged output (`✔ Running tasks for staged files...`) appears b
 ### Task 9: Working docs (AGENTS.md, README, SECURITY, CODEOWNERS, PR template)
 
 **Files:**
+
 - Create: `AGENTS.md`, `CLAUDE.md`, `README.md`, `SECURITY.md`, `.github/CODEOWNERS`, `.github/pull_request_template.md`
 
 - [ ] **Step 1: Create `AGENTS.md`**
 
-````markdown
+```markdown
 # AGENTS.md
 
 How to work in this repo. It's written for AI coding agents and humans alike. If a change makes this file wrong, update it in the same pull request.
@@ -784,14 +793,14 @@ Atlas is a scaffold for internal company apps on Azure: React + Express in TypeS
 
 ## Layout
 
-| Path        | Contains                                                       |
-| ----------- | -------------------------------------------------------------- |
-| `apps/`     | Deployable apps (`web`, `api`; later `ai`)                     |
-| `packages/` | Libraries imported by apps (`@atlas/shared`: zod schemas)      |
-| `tests/`    | Cross-app tests (`e2e`)                                        |
-| `infra/`    | Bicep                                                          |
+| Path        | Contains                                                              |
+| ----------- | --------------------------------------------------------------------- |
+| `apps/`     | Deployable apps (`web`, `api`; later `ai`)                            |
+| `packages/` | Libraries imported by apps (`@atlas/shared`: zod schemas)             |
+| `tests/`    | Cross-app tests (`e2e`)                                               |
+| `infra/`    | Bicep                                                                 |
 | `scripts/`  | `bootstrap.sh` and other operational scripts (bash, shellcheck-clean) |
-| `docs/`     | Specs, plans, ADRs, runbooks                                   |
+| `docs/`     | Specs, plans, ADRs, runbooks                                          |
 
 Current workspaces: `packages/shared`.
 
@@ -799,16 +808,16 @@ Current workspaces: `packages/shared`.
 
 Run these from the repo root.
 
-| Command                         | Does                                                   |
-| ------------------------------- | ------------------------------------------------------ |
-| `npm ci`                        | Install exactly what the lockfile says                 |
-| `npm run check`                 | **Definition of done**: lint + typecheck + all tests   |
-| `npm run lint`                  | ESLint, Prettier check, actionlint, shellcheck         |
-| `npm run format`                | Prettier write                                         |
-| `npm run typecheck`             | `tsc --build` across all workspaces                    |
-| `npm test`                      | Unit tests in every workspace (no Docker)              |
-| `npm run test:integration`      | Integration tests (need Docker)                        |
-| `npm test -w @atlas/shared`     | Tests for one workspace                                |
+| Command                     | Does                                                 |
+| --------------------------- | ---------------------------------------------------- |
+| `npm ci`                    | Install exactly what the lockfile says               |
+| `npm run check`             | **Definition of done**: lint + typecheck + all tests |
+| `npm run lint`              | ESLint, Prettier check, actionlint, shellcheck       |
+| `npm run format`            | Prettier write                                       |
+| `npm run typecheck`         | `tsc --build` across all workspaces                  |
+| `npm test`                  | Unit tests in every workspace (no Docker)            |
+| `npm run test:integration`  | Integration tests (need Docker)                      |
+| `npm test -w @atlas/shared` | Tests for one workspace                              |
 
 ## Definition of done
 
@@ -839,7 +848,7 @@ Run these from the repo root.
 - Schema changes only through committed Drizzle migrations.
 - **Expand, then contract.** Every migration must work with both the current and the previous API version. To rename or drop something: add the new thing → ship → switch reads and writes → ship → remove the old thing.
 - A new table must be added to the grants allowlist (`apps/api/src/db/grants.ts`), or the API can't read it.
-````
+```
 
 - [ ] **Step 2: Create `CLAUDE.md`**
 
@@ -949,6 +958,7 @@ Expected: lint passes. If Prettier re-padded the tables in `AGENTS.md`, that's f
 ### Task 10: Architecture decision records
 
 **Files:**
+
 - Create: `docs/adr/0000-template.md`, `docs/adr/0001-npm-workspaces-monorepo.md`, `docs/adr/0002-trunk-based-build-once-promote.md`, `docs/adr/0011-solo-developer-ruleset.md`, `docs/adr/0013-pin-typescript-6.md`
 
 - [ ] **Step 1: Create `docs/adr/0000-template.md`**
@@ -1098,6 +1108,7 @@ git commit -m "docs: add ADRs for monorepo, trunk-based promotion, solo ruleset 
 ### Task 11: CI workflows (`ci.yml`, `pr-title.yml`) and the coverage summary
 
 **Files:**
+
 - Create: `scripts/coverage-summary.mjs`, `.github/workflows/ci.yml`, `.github/workflows/pr-title.yml`
 - Modify: `package.json` (scripts)
 
@@ -1255,6 +1266,7 @@ git commit -m "ci: add check, dependency review and PR title workflows" -m "Co-A
 ### Task 12: CodeQL and Dependabot
 
 **Files:**
+
 - Create: `.github/workflows/codeql.yml`, `.github/dependabot.yml`
 
 - [ ] **Step 1: Create `.github/workflows/codeql.yml`**
@@ -1349,6 +1361,7 @@ Expected: actionlint accepts `codeql.yml`. (Dependabot config is checked by GitH
 ### Task 13: `scripts/bootstrap.sh repo`
 
 **Files:**
+
 - Create: `scripts/bootstrap.sh`
 - Modify: `package.json` (`lint:sh` script, lint-staged config)
 
@@ -1484,10 +1497,7 @@ printf '%s\n' check dependency-review | jq -R . | jq -s 'map({context: .})'
 Expected:
 
 ```json
-[
-  { "context": "check" },
-  { "context": "dependency-review" }
-]
+[{ "context": "check" }, { "context": "dependency-review" }]
 ```
 
 - [ ] **Step 4: Check the usage guard**
