@@ -23,6 +23,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['src/test/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    restoreMocks: true,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],

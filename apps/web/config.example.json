@@ -1,0 +1,9 @@
+{
+  "env": "local",
+  "auth": {
+    "kind": "mock",
+    "authority": "http://localhost:8090/atlas",
+    "clientId": "atlas-web",
+    "apiScope": "atlas-api/access_as_user"
+  }
+}
