@@ -2,11 +2,15 @@
 
 - **Date:** 2026-10-13
 - **Author:** Chayud Mahithiphark (with Claude Code)
-- **Status:** Draft v2, awaiting review
+- **Status:** Approved (v2.1)
 - **Changes from v1:** three environments, build once and promote,
   per-environment identities, private networking, migrations as a job,
   least-privilege database role, runtime web config, observability,
   governance, supply-chain controls, E2E tests.
+- **Changes in v2.1:** notes become the removable _reference feature_.
+  `GET /api/me` exposes the base `app.users` table, and the API scope is
+  renamed from `Notes.ReadWrite` to the conventional `access_as_user`
+  (authorization stays with App Roles).
 
 ## 1. Purpose
 
@@ -21,7 +25,11 @@ in TypeScript end to end. It exists for two reasons:
    and CI/CD, in a layout an AI coding agent can work in.
 
 A small **notes** feature exists only so that every layer carries real
-traffic. Notes are not the product.
+traffic. Notes are not the product. They're the **reference feature**: copy
+their structure (schema, migration, grants, repository, service, route,
+tests, UI) for the first real feature, then delete them. The **base
+features** stay in every app: `app.users` (exposed as `GET /api/me`),
+`app.audit_events`, sign-in and health checks.
 
 **Constraints.**
 
@@ -299,7 +307,7 @@ tenants. Sign-in is **single-tenant**.
 
 - `atlas-{env}-api`:
   - identifier URI `api://<api-client-id>`
-  - delegated scope `Notes.ReadWrite`
+  - delegated scope `access_as_user`
   - `requestedAccessTokenVersion: 2`
   - `preAuthorizedApplications` = `atlas-{env}-web`, so no consent prompt
     can be blocked by tenant policy
@@ -495,13 +503,14 @@ missing from that list.
 
 ## 9. API (`apps/api`)
 
-| Method | Path                | Auth              | Behaviour                                                                      |
-| ------ | ------------------- | ----------------- | ------------------------------------------------------------------------------ |
-| GET    | `/api/health/live`  | none              | `200 { status, version }`. `version` = `APP_VERSION` (git SHA). Liveness probe |
-| GET    | `/api/health/ready` | none              | 200 when `SELECT 1` succeeds. Readiness probe                                  |
-| GET    | `/api/notes`        | `Notes.ReadWrite` | The caller's notes, newest first                                               |
-| POST   | `/api/notes`        | `Notes.ReadWrite` | Creates a note, returns 201 + note                                             |
-| DELETE | `/api/notes/:id`    | `Notes.ReadWrite` | 204 if the caller owns it, otherwise 404                                       |
+| Method | Path                | Auth             | Behaviour                                                                                                                         |
+| ------ | ------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/health/live`  | none             | `200 { status, version }`. `version` = `APP_VERSION` (git SHA). Liveness probe                                                    |
+| GET    | `/api/health/ready` | none             | 200 when `SELECT 1` succeeds. Readiness probe                                                                                     |
+| GET    | `/api/me`           | `access_as_user` | The signed-in user as `CurrentUser`: the `app.users` row (`id`, `displayName`, `email`) plus `roles` from the token. Base feature |
+| GET    | `/api/notes`        | `access_as_user` | The caller's notes, newest first                                                                                                  |
+| POST   | `/api/notes`        | `access_as_user` | Creates a note, returns 201 + note                                                                                                |
+| DELETE | `/api/notes/:id`    | `access_as_user` | 204 if the caller owns it, otherwise 404                                                                                          |
 
 - **Layers:**
   - `routes` → `services` → `repositories`. Repositories are interfaces with
@@ -532,8 +541,11 @@ missing from that list.
 
 ## 10. Web (`apps/web`)
 
-- **App:** Vite + React with TypeScript. One notes page: sign-in / sign-out,
-  a list, a create form validated with the shared zod schema, and delete.
+- **App:** Vite + React with TypeScript.
+  - A header (base feature) shows the signed-in user's name from
+    `GET /api/me`, with a sign-out button.
+  - One notes page (reference feature): a list, a create form validated with
+    the shared zod schema, and delete.
 - **Runtime config:** `main.tsx` fetches `/config.json` _before_ creating
   the MSAL instance:
 
@@ -689,11 +701,13 @@ files.
 - **API routes:** Supertest against `createApp` with a fake verifier and
   in-memory repositories:
   - problem+json shape
+  - `/api/me` returns the upserted user with `roles` taken from the token
   - 404 for notes that aren't yours
   - ordering
   - delete
   - `x-request-id` echoed back
 - **Web:** React Testing Library + MSW with a fake `AuthProvider`:
+  - the header shows the signed-in user's name from `/api/me`
   - list rendering
   - form validation messages
   - delete
@@ -718,13 +732,13 @@ files.
   production**: `postgres`, `migrate`, `api`, `web`, plus `mock-oidc`
   (`ghcr.io/navikt/mock-oauth2-server`).
 - **The mock issues tokens** shaped like Entra's: `oid`, `tid`, `aud`,
-  `scp=Notes.ReadWrite`.
+  `scp=access_as_user`.
 - **The web app** reaches it through `/config.json` with
   `protocolMode: "OIDC"` and `knownAuthorities`.
 - **The API** trusts it only because `ATLAS_ENV=ci` (§6.3).
 - **Scenarios:**
-  - sign in, create a note, see it, reload and still see it, delete it, see
-    it gone
+  - sign in, and the header shows the mock user's name (from `/api/me`)
+  - create a note, see it, reload and still see it, delete it, see it gone
   - a second user can't see the first user's notes
   - a direct `/api/notes` call without a token returns 401
 - **Why a mock and not Entra:** we can't create MFA-exempt test users in the
@@ -817,7 +831,7 @@ one approval per environment. Its steps:
 | `OIDC_ISSUER`                                           | `https://login.microsoftonline.com/<tenant>/v2.0` (cloud) · mock issuer (local/ci) |
 | `OIDC_AUDIENCE`                                         | `atlas-{env}-api` client ID                                                        |
 | `OIDC_JWKS_URI`                                         | optional; defaults to OIDC discovery                                               |
-| `REQUIRED_SCOPE`                                        | `Notes.ReadWrite`                                                                  |
+| `REQUIRED_SCOPE`                                        | `access_as_user`                                                                   |
 | `DB_AUTH`                                               | `entra` (cloud) · `password` (local/ci)                                            |
 | `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGSSLMODE` | server FQDN, `5432`, `atlas`, identity name, `require`                             |
 | `DATABASE_URL`                                          | local/ci only                                                                      |
@@ -832,7 +846,7 @@ one approval per environment. Its steps:
 | `ATLAS_ENV`                             | as above                                                                      |
 | `AUTH_AUTHORITY`                        | `https://login.microsoftonline.com/<tenant>` (cloud) · mock issuer (local/ci) |
 | `AUTH_CLIENT_ID`                        | `atlas-{env}-web` client ID                                                   |
-| `AUTH_API_SCOPE`                        | `api://<api-client-id>/Notes.ReadWrite`                                       |
+| `AUTH_API_SCOPE`                        | `api://<api-client-id>/access_as_user`                                        |
 | `AUTH_PROTOCOL_MODE`                    | `AAD` (cloud) · `OIDC` (local/ci)                                             |
 | `AUTH_KNOWN_AUTHORITIES`                | mock host (local/ci only)                                                     |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | from `appi-atlas-{env}`                                                       |
