@@ -1,0 +1,19 @@
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Test output
+coverage/
+playwright-report/
+test-results/
+
+# Local configuration. Never commit real values (public repo, spec §6.2)
+.env
+.env.*
+!.env.example
+apps/web/public/config.json
+
+# OS and editor noise
+.DS_Store
+*.log
