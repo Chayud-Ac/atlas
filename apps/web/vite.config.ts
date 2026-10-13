@@ -12,6 +12,22 @@ export default defineConfig({
       ),
     },
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        // Libraries change less often than app code. In their own hashed chunks, they stay in
+        // the browser cache across deploys (nginx serves hashed assets as immutable).
+        codeSplitting: {
+          groups: [
+            { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+            { name: 'msal', test: /node_modules[\\/]@azure[\\/]/ },
+            { name: 'fluent', test: /node_modules[\\/](@fluentui|@griffel|tabster|@floating-ui)/ },
+            { name: 'vendor', test: /node_modules/ },
+          ],
+        },
+      },
+    },
+  },
   server: {
     // The Entra redirect URI is registered for exactly this origin (spec §6.3).
     port: 5173,
