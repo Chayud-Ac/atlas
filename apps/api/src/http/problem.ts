@@ -9,6 +9,7 @@ const TITLES: Readonly<Record<number, string>> = {
   404: 'Not Found',
   413: 'Content Too Large',
   415: 'Unsupported Media Type',
+  429: 'Too Many Requests',
   500: 'Internal Server Error',
   503: 'Service Unavailable',
 };

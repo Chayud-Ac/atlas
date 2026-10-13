@@ -2,7 +2,7 @@ import { CurrentUser, Note, Problem } from '@atlas/shared';
 import type { Express } from 'express';
 import request from 'supertest';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createApp } from './app.js';
+import { createApp, type AppDependencies } from './app.js';
 import { createTokenVerifier } from './auth/token-verifier.js';
 import { createLogger } from './logger.js';
 import { createNotesService, type NotesService } from './notes/notes-service.js';
@@ -29,7 +29,7 @@ beforeEach(() => {
   databaseUp = true;
 });
 
-function buildApp(notes: NotesService = createNotesService(store.unitOfWork)): Express {
+function buildApp(overrides: Partial<AppDependencies> = {}): Express {
   return createApp({
     version: 'abc1234',
     requiredScope: TEST_SCOPE,
@@ -40,11 +40,12 @@ function buildApp(notes: NotesService = createNotesService(store.unitOfWork)): E
       getKey: issuer.getKey,
     }),
     users: store.users,
-    notes,
+    notes: createNotesService(store.unitOfWork),
     checkDatabase: () =>
       databaseUp
         ? Promise.resolve()
         : Promise.reject(new Error('connect ECONNREFUSED 10.0.0.4:5432')),
+    ...overrides,
   });
 }
 
@@ -232,7 +233,7 @@ describe('cross-cutting behaviour', () => {
       create: () => Promise.reject(new Error('unused')),
       remove: () => Promise.reject(new Error('unused')),
     };
-    const res = await request(buildApp(failing))
+    const res = await request(buildApp({ notes: failing }))
       .get('/api/notes')
       .set('Authorization', await asAlice());
     expect(res.status).toBe(500);
@@ -243,5 +244,33 @@ describe('cross-cutting behaviour', () => {
     const res = await request(buildApp()).get('/api/health/live');
     expect(res.get('X-Content-Type-Options')).toBe('nosniff');
     expect(res.get('X-Powered-By')).toBeUndefined();
+  });
+});
+
+describe('rate limiting', () => {
+  it('limits each signed-in user and answers with a problem', async () => {
+    const app = buildApp({ rateLimitPerMinute: 2 });
+    const auth = await asAlice();
+    await request(app).get('/api/notes').set('Authorization', auth);
+    await request(app).get('/api/notes').set('Authorization', auth);
+
+    const limited = await request(app).get('/api/notes').set('Authorization', auth);
+
+    expect(limited.status).toBe(429);
+    expect(limited.get('Content-Type')).toMatch(/^application\/problem\+json/);
+    expect(Problem.parse(limited.body).title).toBe('Too Many Requests');
+  });
+
+  it('counts users separately, because they all arrive through the same proxy', async () => {
+    const app = buildApp({ rateLimitPerMinute: 1 });
+    await request(app)
+      .get('/api/me')
+      .set('Authorization', await asAlice());
+
+    const bob = await request(app)
+      .get('/api/me')
+      .set('Authorization', await asBob());
+
+    expect(bob.status).toBe(200);
   });
 });
