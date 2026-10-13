@@ -61,6 +61,19 @@ describe('createMockAuth', () => {
     expect(setup().create().isSignedIn).toBe(false);
   });
 
+  it('signs in again when asked for a token it no longer has', async () => {
+    server.use(
+      http.post(TOKEN_URL, () => HttpResponse.json({ access_token: 'fresh', expires_in: 3600 })),
+    );
+    const { reload, create } = setup();
+
+    void create().getAccessToken();
+
+    await vi.waitFor(() => {
+      expect(reload).toHaveBeenCalledOnce();
+    });
+  });
+
   it('reports a failed sign-in', async () => {
     server.use(http.post(TOKEN_URL, () => new HttpResponse(null, { status: 401 })));
     await expect(setup().create().signIn()).rejects.toThrow('Mock sign-in failed with 401');

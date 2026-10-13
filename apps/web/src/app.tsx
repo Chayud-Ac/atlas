@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from './api.js';
 import { type Auth, AuthContext, useAuth } from './auth/auth.js';
+import { NotesPage } from './notes/notes.page.js';
 import { UserHeader } from './users/users.header.js';
 
 const useStyles = makeStyles({
@@ -49,7 +50,9 @@ function Shell() {
         {isSignedIn && <UserHeader />}
       </header>
       <main className={styles.main}>
-        {!isSignedIn && (
+        {isSignedIn ? (
+          <NotesPage />
+        ) : (
           <>
             <Text as="p">Sign in with your work account to continue.</Text>
             <Button appearance="primary" onClick={() => void signIn()}>
