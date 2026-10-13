@@ -409,6 +409,18 @@ export default defineConfig(
     rules: {
       // Numbers in template literals are fine; the other strict defaults stay on.
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
+      // A leading underscore marks something as intentionally unused, e.g. Express's
+      // 4-argument error handler or `const { dropped: _dropped, ...rest } = obj`.
+      // (Added during Task 6b, when the CurrentUser tests needed it.)
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
     },
   },
   {
@@ -698,6 +710,104 @@ git commit -m "feat(shared): add note schemas with tests" -m "Co-Authored-By: Cl
 
 ---
 
+### Task 6b: `CurrentUser` schema for `GET /api/me` (added during execution)
+
+This was added after review. Notes are the removable _reference feature_, and `app.users` needs a base endpoint (spec v2.1).
+
+**Files:**
+
+- Modify: `docs/specs/2026-10-13-atlas-scaffold-design.md` (v2.1: `GET /api/me`; scope renamed `Notes.ReadWrite` → `access_as_user`)
+- Create: `packages/shared/src/users.test.ts`, `packages/shared/src/users.ts`
+- Modify: `packages/shared/src/index.ts`, `eslint.config.js` (underscore rule, shown in Task 5)
+
+- [ ] **Step 1: Write the failing tests: `packages/shared/src/users.test.ts`**
+
+```ts
+import { describe, expect, it } from 'vitest';
+import { CurrentUser } from './users.js';
+
+describe('CurrentUser', () => {
+  const user = {
+    id: '0199c3a0-0000-7000-8000-000000000001',
+    displayName: 'Chayud M.',
+    email: 'someone@example.com',
+    roles: ['Admin'],
+  };
+
+  it('accepts a user as GET /api/me returns it', () => {
+    expect(CurrentUser.parse(user)).toEqual(user);
+  });
+
+  it('accepts a user whose name and email are unknown', () => {
+    const anonymous = { ...user, displayName: null, email: null };
+    expect(CurrentUser.parse(anonymous)).toEqual(anonymous);
+  });
+
+  it('accepts a user with no roles', () => {
+    expect(CurrentUser.parse({ ...user, roles: [] }).roles).toEqual([]);
+  });
+
+  it('rejects a response without roles, so "no roles" is never ambiguous', () => {
+    const { roles: _roles, ...withoutRoles } = user;
+    expect(CurrentUser.safeParse(withoutRoles).success).toBe(false);
+  });
+
+  it('rejects an empty role name', () => {
+    expect(CurrentUser.safeParse({ ...user, roles: [''] }).success).toBe(false);
+  });
+
+  it('rejects an id that is not a UUID', () => {
+    expect(CurrentUser.safeParse({ ...user, id: 'abc' }).success).toBe(false);
+  });
+
+  it('rejects unknown fields, so internal identifiers cannot leak to the browser', () => {
+    const leaky = { ...user, entraObjectId: '0199c3a0-0000-7000-8000-000000000002' };
+    expect(CurrentUser.safeParse(leaky).success).toBe(false);
+  });
+});
+```
+
+- [ ] **Step 2: Run them and watch them fail.** `npm test -w @atlas/shared` → `Cannot find module './users.js'`.
+
+- [ ] **Step 3: Implement `packages/shared/src/users.ts`**
+
+```ts
+import { z } from 'zod';
+
+/**
+ * The signed-in user, as returned by GET /api/me.
+ * `id` is the app's own users.id, never an Entra identifier. `roles` comes from the
+ * token's `roles` claim (Entra App Roles) and is always present, even when empty.
+ */
+export const CurrentUser = z.strictObject({
+  id: z.uuid(),
+  displayName: z.string().nullable(),
+  email: z.string().nullable(),
+  roles: z.array(z.string().min(1)),
+});
+export type CurrentUser = z.infer<typeof CurrentUser>;
+```
+
+- [ ] **Step 4: Export it from `packages/shared/src/index.ts`**
+
+```ts
+export * from './notes.js';
+export * from './users.js';
+```
+
+- [ ] **Step 5: Run the tests and watch them pass.** `Tests  19 passed (19)`, 100% lines.
+
+- [ ] **Step 6: Run lint.** ESLint fails with `'_roles' is assigned a value but never used`. Add the underscore rule shown in Task 5, then confirm that a probe `const x = 1;` inside a function **still fails** and that `npm run lint` passes.
+
+- [ ] **Step 7: Commit the spec and the code separately**
+
+```bash
+git add docs/specs && git commit -m "docs(spec): add GET /api/me and rename API scope to access_as_user" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+git add packages/shared eslint.config.js && git commit -m "feat(shared): add CurrentUser schema for GET /api/me" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+```
+
+---
+
 ### Task 7: Root test scripts and `npm run check`
 
 **Files:**
@@ -719,7 +829,7 @@ npm pkg set \
 npm run check
 ```
 
-Expected: lint passes, typecheck passes, `@atlas/shared` tests pass (12), and `test:integration` exits 0 without doing anything (no workspace defines it yet). Exit code 0.
+Expected: lint passes, typecheck passes, `@atlas/shared` tests pass (19), and `test:integration` exits 0 without doing anything (no workspace defines it yet). Exit code 0.
 
 - [ ] **Step 3: Commit**
 
@@ -830,6 +940,13 @@ Run these from the repo root.
 - **Validation:** zod schemas in `@atlas/shared` are the single source of truth for request and response shapes. Infer types with `z.infer`. Never hand-write a duplicate type.
 - **Files:** small, with one job each. Split a file when it passes ~200 lines or starts doing two things.
 - **Naming:** files `kebab-case.ts`, types and schemas `PascalCase`, functions and variables `camelCase`, database tables and columns `snake_case`.
+- **Intentionally unused:** prefix with `_` (`_next`, `const { secret: _secret, ...safe } = obj`). Everything else unused is a lint error.
+
+## Base features and the reference feature
+
+- **Base features ship in every app built on this scaffold:** sign-in, `app.users` (exposed as `GET /api/me` → `CurrentUser`), `app.audit_events`, and the health endpoints. Don't remove them.
+- **Notes is the reference feature.** It shows the full pattern: shared zod schema → migration → grants → repository → service → route → tests → UI. Copy its structure for your first real feature, then delete it.
+- **Authorization:** every endpoint requires the `access_as_user` scope. What a user _may do_ is decided by Entra App Roles (`req.auth.roles`), never by extra scopes or database role tables.
 
 ## Git and pull requests
 
@@ -1516,7 +1633,7 @@ npm pkg set --json 'lint-staged={"*.{ts,tsx,js,mjs,cjs}":["eslint --max-warnings
 npm run check
 ```
 
-Expected: `npm run check` passes end to end (ESLint, Prettier, actionlint, shellcheck, typecheck, 12 tests).
+Expected: `npm run check` passes end to end (ESLint, Prettier, actionlint, shellcheck, typecheck, 19 tests).
 
 - [ ] **Step 6: Commit**
 
@@ -1580,7 +1697,8 @@ Milestone M1 from the design spec: monorepo foundation, quality gates and repo g
 ## Changes
 
 - npm workspaces, strict TypeScript 6.0 (ADR 0013), type-aware ESLint, Prettier, husky + lint-staged
-- `@atlas/shared` with zod note schemas and tests (80% coverage threshold)
+- `@atlas/shared` with zod schemas (`CreateNoteInput`, `Note`, `CurrentUser`) and tests (80% coverage threshold)
+- Spec v2.1: notes become the removable reference feature, `GET /api/me` is added, and the scope is renamed to `access_as_user`
 - CI: `check`, `dependency-review`, `pr-title`, CodeQL (`javascript-typescript`, `actions`), Dependabot
 - AGENTS.md, README, SECURITY.md, CODEOWNERS, PR template, ADRs 0001/0002/0011/0013
 - `scripts/bootstrap.sh repo`: squash-only merges, secret scanning + push protection, Dependabot security updates, `main` ruleset
