@@ -2,11 +2,15 @@
 
 - **Date:** 2026-10-13
 - **Author:** Chayud Mahithiphark (with Claude Code)
-- **Status:** Draft v2, awaiting review
+- **Status:** Approved (v2.1)
 - **Changes from v1:** three environments, build once and promote,
   per-environment identities, private networking, migrations as a job,
   least-privilege database role, runtime web config, observability,
   governance, supply-chain controls, E2E tests.
+- **Changes in v2.1:** notes become the removable _reference feature_.
+  `GET /api/me` exposes the base `app.users` table, and the API scope is
+  renamed from `Notes.ReadWrite` to the conventional `access_as_user`
+  (authorization stays with App Roles).
 
 ## 1. Purpose
 
@@ -21,7 +25,11 @@ in TypeScript end to end. It exists for two reasons:
    and CI/CD, in a layout an AI coding agent can work in.
 
 A small **notes** feature exists only so that every layer carries real
-traffic. Notes are not the product.
+traffic. Notes are not the product. They're the **reference feature**: copy
+their structure (schema, migration, grants, repository, service, route,
+tests, UI) for the first real feature, then delete them. The **base
+features** stay in every app: `app.users` (exposed as `GET /api/me`),
+`app.audit_events`, sign-in and health checks.
 
 **Constraints.**
 
@@ -37,25 +45,25 @@ Items excluded on cost or tenant grounds are listed in §17.
 
 ## 2. Decisions at a glance
 
-| Area | Decision |
-|---|---|
-| Repo | Public `Chayud-Ac/atlas`, npm workspaces monorepo, trunk-based (`main` only) |
-| Language / runtime | TypeScript (strict), Node 24 LTS |
-| Web | Vite + React, MSAL React, runtime `/config.json`, nginx (unprivileged) |
-| API | Express 5, zod, pino, OpenTelemetry, Drizzle ORM |
-| Database | PostgreSQL 17 Flexible Server B1ms per environment, Entra-only auth, schema `app` |
-| Hosting | Azure Container Apps, VNet-integrated (web external, API internal), migrations as a Container Apps Job |
-| Environments | `dev` → `uat` → `prod`, one resource group each, plus `shared` (registry) and `cicd` (pipeline identities) |
-| Promotion | Build once (tag = git SHA), deploy the same image to each environment. UAT and prod need approval |
-| Infra as code | Bicep, with all per-environment differences in one `infra/config/environments.json` |
-| Pipeline → Azure | User-assigned managed identities with federated credentials (OIDC), one per environment plus `shared` and `plan` |
-| Users → app | Entra ID, app registrations `atlas-{env}-web` / `atlas-{env}-api`, single-tenant |
-| App → Azure services | Per-app user-assigned managed identities (ACR pull, Postgres) |
-| Observability | Application Insights (workspace-based) + Log Analytics per environment. Alerts and availability tests in prod |
-| Governance | Tags, Azure Policy (allowed locations, required `env` tag), $100 budget alerts, delete lock on prod |
-| Supply chain | CodeQL, dependency review, secret scanning + push protection, Dependabot, Trivy, SBOM + provenance attestations, SHA-pinned actions, PSRule for Azure |
-| Tests | Vitest, Supertest, Testcontainers, React Testing Library, MSW, Playwright + mock OIDC server |
-| Region | `southeastasia`. Fallback if Postgres is offer-restricted: `eastasia` |
+| Area                 | Decision                                                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repo                 | Public `Chayud-Ac/atlas`, npm workspaces monorepo, trunk-based (`main` only)                                                                          |
+| Language / runtime   | TypeScript (strict), Node 24 LTS                                                                                                                      |
+| Web                  | Vite + React, MSAL React, runtime `/config.json`, nginx (unprivileged)                                                                                |
+| API                  | Express 5, zod, pino, OpenTelemetry, Drizzle ORM                                                                                                      |
+| Database             | PostgreSQL 17 Flexible Server B1ms per environment, Entra-only auth, schema `app`                                                                     |
+| Hosting              | Azure Container Apps, VNet-integrated (web external, API internal), migrations as a Container Apps Job                                                |
+| Environments         | `dev` → `uat` → `prod`, one resource group each, plus `shared` (registry) and `cicd` (pipeline identities)                                            |
+| Promotion            | Build once (tag = git SHA), deploy the same image to each environment. UAT and prod need approval                                                     |
+| Infra as code        | Bicep, with all per-environment differences in one `infra/config/environments.json`                                                                   |
+| Pipeline → Azure     | User-assigned managed identities with federated credentials (OIDC), one per environment plus `shared` and `plan`                                      |
+| Users → app          | Entra ID, app registrations `atlas-{env}-web` / `atlas-{env}-api`, single-tenant                                                                      |
+| App → Azure services | Per-app user-assigned managed identities (ACR pull, Postgres)                                                                                         |
+| Observability        | Application Insights (workspace-based) + Log Analytics per environment. Alerts and availability tests in prod                                         |
+| Governance           | Tags, Azure Policy (allowed locations, required `env` tag), $100 budget alerts, delete lock on prod                                                   |
+| Supply chain         | CodeQL, dependency review, secret scanning + push protection, Dependabot, Trivy, SBOM + provenance attestations, SHA-pinned actions, PSRule for Azure |
+| Tests                | Vitest, Supertest, Testcontainers, React Testing Library, MSW, Playwright + mock OIDC server                                                          |
+| Region               | `southeastasia`. Fallback if Postgres is offer-restricted: `eastasia`                                                                                 |
 
 ## 3. Environments and promotion
 
@@ -65,18 +73,18 @@ The source of truth is `infra/config/environments.json`. Every Bicep template
 reads its settings from there. Nothing environment-specific is hard-coded
 anywhere else.
 
-| Setting | dev | uat | prod |
-|---|---|---|---|
-| Deploy gate | automatic after build | required reviewer | required reviewer |
-| Container Apps replicas (web, api) | min 0 / max 1 | min 0 / max 2 | **min 1** / max 3 |
-| Replica size | 0.25 vCPU / 0.5 GiB | same | same |
-| Postgres network | public endpoint; firewall = Azure services + developer IP opened on demand | **private (VNet-integrated), no public access** | **private (VNet-integrated), no public access** |
-| Human DB access | `atlas-dev-db-admins` group (you) | none by default (§11.4) | none by default (§11.4) |
-| Postgres backup retention | 7 days | 7 days | 35 days |
-| Log Analytics retention | 30 days | 30 days | 90 days |
-| Alerts + availability tests | no | no | yes |
-| Resource group delete lock | no | no | `CanNotDelete` |
-| VNet address space | `10.10.0.0/16` | `10.20.0.0/16` | `10.30.0.0/16` |
+| Setting                            | dev                                                                        | uat                                             | prod                                            |
+| ---------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------- |
+| Deploy gate                        | automatic after build                                                      | required reviewer                               | required reviewer                               |
+| Container Apps replicas (web, api) | min 0 / max 1                                                              | min 0 / max 2                                   | **min 1** / max 3                               |
+| Replica size                       | 0.25 vCPU / 0.5 GiB                                                        | same                                            | same                                            |
+| Postgres network                   | public endpoint; firewall = Azure services + developer IP opened on demand | **private (VNet-integrated), no public access** | **private (VNet-integrated), no public access** |
+| Human DB access                    | `atlas-dev-db-admins` group (you)                                          | none by default (§11.4)                         | none by default (§11.4)                         |
+| Postgres backup retention          | 7 days                                                                     | 7 days                                          | 35 days                                         |
+| Log Analytics retention            | 30 days                                                                    | 30 days                                         | 90 days                                         |
+| Alerts + availability tests        | no                                                                         | no                                              | yes                                             |
+| Resource group delete lock         | no                                                                         | no                                              | `CanNotDelete`                                  |
+| VNet address space                 | `10.10.0.0/16`                                                             | `10.20.0.0/16`                                  | `10.30.0.0/16`                                  |
 
 Address spaces don't overlap, so the VNets can later be peered into a hub
 without renumbering.
@@ -137,25 +145,25 @@ Browser ──HTTPS──►  │ cae-atlas-{env} (external, VNet-integrated, sn
 
 ### 4.2 Trust relationships (no secrets anywhere)
 
-| Caller → target | Mechanism |
-|---|---|
-| GitHub `pull_request` → Azure (read only) | `id-atlas-github-plan`, federated credential, custom what-if role |
-| GitHub env `shared` → registry | `id-atlas-github-shared`, federated credential |
-| GitHub env `{env}` → `rg-atlas-{env}` | `id-atlas-github-{env}`, federated credential |
-| User → web/API | Entra ID sign-in, API validates the access token |
-| Web, API, migrator → registry | `id-atlas-{web,api,migrator}-{env}` with AcrPull |
-| Migrator → Postgres | `id-atlas-migrator-{env}`, a Postgres Entra admin (owns the schema) |
-| API → Postgres | `id-atlas-api-{env}`, a non-admin Postgres role, DML only |
+| Caller → target                           | Mechanism                                                           |
+| ----------------------------------------- | ------------------------------------------------------------------- |
+| GitHub `pull_request` → Azure (read only) | `id-atlas-github-plan`, federated credential, custom what-if role   |
+| GitHub env `shared` → registry            | `id-atlas-github-shared`, federated credential                      |
+| GitHub env `{env}` → `rg-atlas-{env}`     | `id-atlas-github-{env}`, federated credential                       |
+| User → web/API                            | Entra ID sign-in, API validates the access token                    |
+| Web, API, migrator → registry             | `id-atlas-{web,api,migrator}-{env}` with AcrPull                    |
+| Migrator → Postgres                       | `id-atlas-migrator-{env}`, a Postgres Entra admin (owns the schema) |
+| API → Postgres                            | `id-atlas-api-{env}`, a non-admin Postgres role, DML only           |
 
 ### 4.3 Resource naming (Cloud Adoption Framework abbreviations)
 
-| Scope | Resources |
-|---|---|
-| `rg-atlas-cicd` (created and changed by a human only) | `id-atlas-github-plan`, `id-atlas-github-shared`, `id-atlas-github-dev`, `id-atlas-github-uat`, `id-atlas-github-prod` |
-| `rg-atlas-shared` | `cratlas<suffix>` (ACR Basic) |
-| `rg-atlas-{env}` | `vnet-atlas-{env}` (`snet-cae`, `snet-psql`), `nsg-atlas-{env}-cae`, `nsg-atlas-{env}-psql`, `log-atlas-{env}`, `appi-atlas-{env}`, `cae-atlas-{env}`, `id-atlas-web-{env}`, `id-atlas-api-{env}`, `id-atlas-migrator-{env}`, `ca-atlas-web-{env}`, `ca-atlas-api-{env}`, `caj-atlas-migrate-{env}`, `psql-atlas-{env}-<suffix>` (database `atlas`). uat/prod also: private DNS zone `atlas-{env}.private.postgres.database.azure.com`. prod also: `ag-atlas-prod`, availability tests, alert rules |
-| Entra ID | `atlas-{env}-web`, `atlas-{env}-api` (app registrations), `atlas-{env}-db-admins` (security group) |
-| Subscription | Custom roles `Atlas What-If Reader` and `Atlas Deployment Runner`, policy assignments, budget `budget-atlas` |
+| Scope                                                 | Resources                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rg-atlas-cicd` (created and changed by a human only) | `id-atlas-github-plan`, `id-atlas-github-shared`, `id-atlas-github-dev`, `id-atlas-github-uat`, `id-atlas-github-prod`                                                                                                                                                                                                                                                                                                                                                                              |
+| `rg-atlas-shared`                                     | `cratlas<suffix>` (ACR Basic)                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `rg-atlas-{env}`                                      | `vnet-atlas-{env}` (`snet-cae`, `snet-psql`), `nsg-atlas-{env}-cae`, `nsg-atlas-{env}-psql`, `log-atlas-{env}`, `appi-atlas-{env}`, `cae-atlas-{env}`, `id-atlas-web-{env}`, `id-atlas-api-{env}`, `id-atlas-migrator-{env}`, `ca-atlas-web-{env}`, `ca-atlas-api-{env}`, `caj-atlas-migrate-{env}`, `psql-atlas-{env}-<suffix>` (database `atlas`). uat/prod also: private DNS zone `atlas-{env}.private.postgres.database.azure.com`. prod also: `ag-atlas-prod`, availability tests, alert rules |
+| Entra ID                                              | `atlas-{env}-web`, `atlas-{env}-api` (app registrations), `atlas-{env}-db-admins` (security group)                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Subscription                                          | Custom roles `Atlas What-If Reader` and `Atlas Deployment Runner`, policy assignments, budget `budget-atlas`                                                                                                                                                                                                                                                                                                                                                                                        |
 
 `<suffix>` is `uniqueString(subscription().id)`, used for names that must be
 globally unique.
@@ -217,11 +225,11 @@ need to change.
 All of these are created by `scripts/bootstrap.sh`, run by you as
 subscription Owner.
 
-| Identity | Federated subject | Roles |
-|---|---|---|
-| `id-atlas-github-plan` | `repo:Chayud-Ac/atlas:pull_request` | `Atlas What-If Reader` on `rg-atlas-shared` and each `rg-atlas-{env}` |
-| `id-atlas-github-shared` | `repo:Chayud-Ac/atlas:environment:shared` | Contributor on `rg-atlas-shared`. AcrPush on the registry |
-| `id-atlas-github-{env}` | `repo:Chayud-Ac/atlas:environment:{env}` | Contributor on `rg-atlas-{env}`. On `rg-atlas-shared`: Reader + `Atlas Deployment Runner` + Role Based Access Control Administrator **limited by condition to assigning/removing AcrPull** (`7f951dda-4ed3-4680-a7ca-43fe172d538d`) |
+| Identity                 | Federated subject                         | Roles                                                                                                                                                                                                                               |
+| ------------------------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id-atlas-github-plan`   | `repo:Chayud-Ac/atlas:pull_request`       | `Atlas What-If Reader` on `rg-atlas-shared` and each `rg-atlas-{env}`                                                                                                                                                               |
+| `id-atlas-github-shared` | `repo:Chayud-Ac/atlas:environment:shared` | Contributor on `rg-atlas-shared`. AcrPush on the registry                                                                                                                                                                           |
+| `id-atlas-github-{env}`  | `repo:Chayud-Ac/atlas:environment:{env}`  | Contributor on `rg-atlas-{env}`. On `rg-atlas-shared`: Reader + `Atlas Deployment Runner` + Role Based Access Control Administrator **limited by condition to assigning/removing AcrPull** (`7f951dda-4ed3-4680-a7ca-43fe172d538d`) |
 
 All credentials use issuer `https://token.actions.githubusercontent.com` and
 audience `api://AzureADTokenExchange`.
@@ -256,12 +264,12 @@ assignments, the budget, app registrations, Entra groups, and anything in
 
 **Environments:**
 
-| Environment | Branch policy | Required reviewers | Variables |
-|---|---|---|---|
-| `shared` | `main` only | none | `AZURE_CLIENT_ID` |
-| `dev` | `main` only | none | `AZURE_CLIENT_ID`, `ENTRA_TENANT_ID`, `ENTRA_WEB_CLIENT_ID`, `ENTRA_API_CLIENT_ID`, `DB_ADMIN_GROUP_OBJECT_ID`, `DB_ADMIN_GROUP_NAME` |
-| `uat` | `main` only | `Chayud-Ac` | same as dev |
-| `prod` | `main` only | `Chayud-Ac` | same as dev, plus `ALERT_EMAIL` |
+| Environment | Branch policy | Required reviewers | Variables                                                                                                                             |
+| ----------- | ------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `shared`    | `main` only   | none               | `AZURE_CLIENT_ID`                                                                                                                     |
+| `dev`       | `main` only   | none               | `AZURE_CLIENT_ID`, `ENTRA_TENANT_ID`, `ENTRA_WEB_CLIENT_ID`, `ENTRA_API_CLIENT_ID`, `DB_ADMIN_GROUP_OBJECT_ID`, `DB_ADMIN_GROUP_NAME` |
+| `uat`       | `main` only   | `Chayud-Ac`        | same as dev                                                                                                                           |
+| `prod`      | `main` only   | `Chayud-Ac`        | same as dev, plus `ALERT_EMAIL`                                                                                                       |
 
 Self-review is allowed, because this is a solo project.
 
@@ -299,7 +307,7 @@ tenants. Sign-in is **single-tenant**.
 
 - `atlas-{env}-api`:
   - identifier URI `api://<api-client-id>`
-  - delegated scope `Notes.ReadWrite`
+  - delegated scope `access_as_user`
   - `requestedAccessTokenVersion: 2`
   - `preAuthorizedApplications` = `atlas-{env}-web`, so no consent prompt
     can be blocked by tenant policy
@@ -346,11 +354,11 @@ tenants. Sign-in is **single-tenant**.
 Per environment, created in `platform.bicep`. They're user-assigned, so
 AcrPull exists before the first image pull.
 
-| Identity | Used by | Grants |
-|---|---|---|
-| `id-atlas-web-{env}` | web app | AcrPull |
-| `id-atlas-api-{env}` | API app | AcrPull. Postgres role `id-atlas-api-{env}` (DML, §8.5) |
-| `id-atlas-migrator-{env}` | migration job | AcrPull. **Postgres Entra admin** |
+| Identity                  | Used by       | Grants                                                  |
+| ------------------------- | ------------- | ------------------------------------------------------- |
+| `id-atlas-web-{env}`      | web app       | AcrPull                                                 |
+| `id-atlas-api-{env}`      | API app       | AcrPull. Postgres role `id-atlas-api-{env}` (DML, §8.5) |
+| `id-atlas-migrator-{env}` | migration job | AcrPull. **Postgres Entra admin**                       |
 
 The second Postgres Entra admin is the group `atlas-{env}-db-admins`. You
 are a member in dev. In UAT and prod it's empty by default.
@@ -365,7 +373,7 @@ are a member in dev. In UAT and prod it's empty by default.
     (allows 5432 from `snet-cae` only). Used in uat/prod; dev reserves it
     unused, so dev can switch to private later.
 - **`cae-atlas-{env}`** is a workload-profiles environment (Consumption
-  profile), VNet-integrated and *external*, so the web app can have public
+  profile), VNet-integrated and _external_, so the web app can have public
   ingress. The API has internal ingress only.
 - **Postgres, uat/prod:** VNet-integrated into `snet-psql`, with private DNS
   zone `atlas-{env}.private.postgres.database.azure.com` linked to the VNet.
@@ -385,13 +393,13 @@ are a member in dev. In UAT and prod it's empty by default.
 - `id uuid primary key`, a **UUIDv7** generated in the app (`uuid` package,
   Drizzle `$defaultFn`).
 - `created_at timestamptz not null default now()`, and `updated_at
-  timestamptz not null default now()` maintained by Drizzle `$onUpdate`.
+timestamptz not null default now()` maintained by Drizzle `$onUpdate`.
 - Tables are plural snake_case. Columns are snake_case. Foreign keys
   reference `app.users.id`, never Entra identifiers.
 - Schema changes happen only through committed Drizzle migrations
   (`apps/api/drizzle/*.sql`), reviewed in pull requests.
 - **Expand, then contract** (also in `AGENTS.md`). The migration job runs
-  *before* the new API revision starts, so every migration must work with
+  _before_ the new API revision starts, so every migration must work with
   both the old and the new API versions. To rename or drop something: add
   the new column/table → ship → move reads and writes over → ship → drop the
   old one in a later release.
@@ -472,7 +480,7 @@ things:
    the pipeline stops before `apps.bicep`.
 2. Ensures the runtime role exists with
    `pgaadauth_create_principal_with_oid('id-atlas-api-{env}', <principalId>,
-   'service', false, false)`. This runs only in cloud environments, and
+'service', false, false)`. This runs only in cloud environments, and
    whether it must run in the `postgres` database is verified during
    implementation.
 3. Re-applies grants idempotently from an explicit per-table list in
@@ -495,13 +503,14 @@ missing from that list.
 
 ## 9. API (`apps/api`)
 
-| Method | Path | Auth | Behaviour |
-|---|---|---|---|
-| GET | `/api/health/live` | none | `200 { status, version }`. `version` = `APP_VERSION` (git SHA). Liveness probe |
-| GET | `/api/health/ready` | none | 200 when `SELECT 1` succeeds. Readiness probe |
-| GET | `/api/notes` | `Notes.ReadWrite` | The caller's notes, newest first |
-| POST | `/api/notes` | `Notes.ReadWrite` | Creates a note, returns 201 + note |
-| DELETE | `/api/notes/:id` | `Notes.ReadWrite` | 204 if the caller owns it, otherwise 404 |
+| Method | Path                | Auth             | Behaviour                                                                                                                         |
+| ------ | ------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/health/live`  | none             | `200 { status, version }`. `version` = `APP_VERSION` (git SHA). Liveness probe                                                    |
+| GET    | `/api/health/ready` | none             | 200 when `SELECT 1` succeeds. Readiness probe                                                                                     |
+| GET    | `/api/me`           | `access_as_user` | The signed-in user as `CurrentUser`: the `app.users` row (`id`, `displayName`, `email`) plus `roles` from the token. Base feature |
+| GET    | `/api/notes`        | `access_as_user` | The caller's notes, newest first                                                                                                  |
+| POST   | `/api/notes`        | `access_as_user` | Creates a note, returns 201 + note                                                                                                |
+| DELETE | `/api/notes/:id`    | `access_as_user` | 204 if the caller owns it, otherwise 404                                                                                          |
 
 - **Layers:**
   - `routes` → `services` → `repositories`. Repositories are interfaces with
@@ -532,16 +541,26 @@ missing from that list.
 
 ## 10. Web (`apps/web`)
 
-- **App:** Vite + React with TypeScript. One notes page: sign-in / sign-out,
-  a list, a create form validated with the shared zod schema, and delete.
-- **Runtime config:** `main.tsx` fetches `/config.json` *before* creating
+- **App:** Vite + React with TypeScript.
+  - A header (base feature) shows the signed-in user's name from
+    `GET /api/me`, with a sign-out button.
+  - One notes page (reference feature): a list, a create form validated with
+    the shared zod schema, and delete.
+- **Runtime config:** `main.tsx` fetches `/config.json` _before_ creating
   the MSAL instance:
 
   ```json
-  { "env": "uat",
-    "auth": { "authority": "...", "clientId": "...", "apiScope": "...",
-              "knownAuthorities": [], "protocolMode": "AAD" },
-    "telemetry": { "connectionString": "..." } }
+  {
+    "env": "uat",
+    "auth": {
+      "authority": "...",
+      "clientId": "...",
+      "apiScope": "...",
+      "knownAuthorities": [],
+      "protocolMode": "AAD"
+    },
+    "telemetry": { "connectionString": "..." }
+  }
   ```
 
   - In the container, a `/docker-entrypoint.d/` script renders it from
@@ -549,6 +568,7 @@ missing from that list.
   - In Vite dev, it's served from a git-ignored `public/config.json`
     generated by `npm run dev:config`.
   - Every value in it is a public identifier.
+
 - **API client:** a `fetch` wrapper that:
   - attaches the bearer token
   - propagates W3C `traceparent`
@@ -617,10 +637,10 @@ missing from that list.
 
 ### 11.4 Human database access (summary)
 
-| Environment | Who | How |
-|---|---|---|
-| dev | `atlas-dev-db-admins` (you) | open the firewall with `db-access.sh dev`, then `psql` with an Entra token |
-| uat, prod | nobody by default | reviewed migrations; emergency procedure in `database-access.md` |
+| Environment | Who                         | How                                                                        |
+| ----------- | --------------------------- | -------------------------------------------------------------------------- |
+| dev         | `atlas-dev-db-admins` (you) | open the firewall with `db-access.sh dev`, then `psql` with an Entra token |
+| uat, prod   | nobody by default           | reviewed migrations; emergency procedure in `database-access.md`           |
 
 ## 12. Governance and cost
 
@@ -628,8 +648,8 @@ missing from that list.
   `environments.json`: `env`, `app=atlas`, `owner=Chayud-Ac`,
   `costCenter=personal-learning`.
 - **Azure Policy**, assigned by `bootstrap.sh` to each atlas resource group:
-  - *Allowed locations*: `southeastasia`, `eastasia`. Deny.
-  - *Require a tag on resources*: `env`. Deny.
+  - _Allowed locations_: `southeastasia`, `eastasia`. Deny.
+  - _Require a tag on resources_: `env`. Deny.
 - **Budget** `budget-atlas`: $100 a month on the subscription, emailing at
   50%, 80% and 100% actual, and at 100% forecast. If the Azure for Students
   offer doesn't support budgets, `bootstrap.sh` warns and continues.
@@ -642,26 +662,26 @@ missing from that list.
 
 **Estimated cost, one full month with everything running:**
 
-| Item | Estimate |
-|---|---|
-| Postgres B1ms + 32 GB × 3 | ~$48 (−$16 if the 750-hour free offer applies to one server) |
-| Container Apps: prod web + API at min 1 (mostly idle rate) | ~$12 |
-| Container Apps: dev/uat (scale to zero) | ~$0, within the free allowance |
-| ACR Basic (shared) | ~$5 |
-| Log Analytics / App Insights (first 5 GB/month free) | ~$0–3 |
-| Private DNS zones ×2, availability tests, alert rules | ~$3 |
-| **Total** | **~$70** (budget alerts at $50 / $80 / $100) |
+| Item                                                       | Estimate                                                     |
+| ---------------------------------------------------------- | ------------------------------------------------------------ |
+| Postgres B1ms + 32 GB × 3                                  | ~$48 (−$16 if the 750-hour free offer applies to one server) |
+| Container Apps: prod web + API at min 1 (mostly idle rate) | ~$12                                                         |
+| Container Apps: dev/uat (scale to zero)                    | ~$0, within the free allowance                               |
+| ACR Basic (shared)                                         | ~$5                                                          |
+| Log Analytics / App Insights (first 5 GB/month free)       | ~$0–3                                                        |
+| Private DNS zones ×2, availability tests, alert rules      | ~$3                                                          |
+| **Total**                                                  | **~$70** (budget alerts at $50 / $80 / $100)                 |
 
 ## 13. Quality gates (local)
 
-| Script | Runs |
-|---|---|
-| `npm run lint` | ESLint (typescript-eslint, flat config) + Prettier check |
-| `npm run typecheck` | `tsc --build` across workspaces |
-| `npm test` | Vitest unit + component tests (no Docker) |
-| `npm run test:integration` | Vitest + Testcontainers `postgres:17` (needs Docker) |
-| `npm run test:e2e` | compose `full` profile + Playwright |
-| `npm run check` | lint + typecheck + test + test:integration (the definition of done in `AGENTS.md`) |
+| Script                     | Runs                                                                               |
+| -------------------------- | ---------------------------------------------------------------------------------- |
+| `npm run lint`             | ESLint (typescript-eslint, flat config) + Prettier check                           |
+| `npm run typecheck`        | `tsc --build` across workspaces                                                    |
+| `npm test`                 | Vitest unit + component tests (no Docker)                                          |
+| `npm run test:integration` | Vitest + Testcontainers `postgres:17` (needs Docker)                               |
+| `npm run test:e2e`         | compose `full` profile + Playwright                                                |
+| `npm run check`            | lint + typecheck + test + test:integration (the definition of done in `AGENTS.md`) |
 
 The pre-commit hook (husky + lint-staged) runs ESLint and Prettier on staged
 files.
@@ -681,11 +701,13 @@ files.
 - **API routes:** Supertest against `createApp` with a fake verifier and
   in-memory repositories:
   - problem+json shape
+  - `/api/me` returns the upserted user with `roles` taken from the token
   - 404 for notes that aren't yours
   - ordering
   - delete
   - `x-request-id` echoed back
 - **Web:** React Testing Library + MSW with a fake `AuthProvider`:
+  - the header shows the signed-in user's name from `/api/me`
   - list rendering
   - form validation messages
   - delete
@@ -710,13 +732,13 @@ files.
   production**: `postgres`, `migrate`, `api`, `web`, plus `mock-oidc`
   (`ghcr.io/navikt/mock-oauth2-server`).
 - **The mock issues tokens** shaped like Entra's: `oid`, `tid`, `aud`,
-  `scp=Notes.ReadWrite`.
+  `scp=access_as_user`.
 - **The web app** reaches it through `/config.json` with
   `protocolMode: "OIDC"` and `knownAuthorities`.
 - **The API** trusts it only because `ATLAS_ENV=ci` (§6.3).
 - **Scenarios:**
-  - sign in, create a note, see it, reload and still see it, delete it, see
-    it gone
+  - sign in, and the header shows the mock user's name (from `/api/me`)
+  - create a note, see it, reload and still see it, delete it, see it gone
   - a second user can't see the first user's notes
   - a direct `/api/notes` call without a token returns 401
 - **Why a mock and not Entra:** we can't create MFA-exempt test users in the
@@ -744,15 +766,15 @@ files.
 `contents: read` unless a job needs more. Concurrency is per ref, and newer
 runs cancel older ones.
 
-| Job | Does |
-|---|---|
-| `check` | `npm ci` → lint → typecheck → test → test:integration → coverage summary |
-| `e2e` | `npm run test:e2e`. The Playwright report is uploaded as an artifact when it fails |
-| `build-images` | Builds both images (GitHub Actions cache, no push), then a Trivy scan that fails on CRITICAL/HIGH with a fix available |
-| `bicep` | `az bicep build` + lint on every template, then PSRule for Azure (`ps-rule.yaml`, with every exception justified inline) |
-| `what-if` | Matrix: `shared`, `dev`, `uat`, `prod`. Signs in as `id-atlas-github-plan` (`id-token: write`) and writes **redacted** what-if output to the job summary. **Runs only on `pull_request` events**, because the federated credential trusts only PR tokens, so it is skipped when `deploy.yml` reuses `ci.yml`. Also skipped for forks and Dependabot, which get no OIDC token. A skip counts as passing |
-| `pr-title` | Conventional Commits check on the PR title (it becomes the squash commit message) |
-| `dependency-review` | Blocks new dependencies with known high-severity vulnerabilities or disallowed licenses |
+| Job                 | Does                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `check`             | `npm ci` → lint → typecheck → test → test:integration → coverage summary                                                                                                                                                                                                                                                                                                                               |
+| `e2e`               | `npm run test:e2e`. The Playwright report is uploaded as an artifact when it fails                                                                                                                                                                                                                                                                                                                     |
+| `build-images`      | Builds both images (GitHub Actions cache, no push), then a Trivy scan that fails on CRITICAL/HIGH with a fix available                                                                                                                                                                                                                                                                                 |
+| `bicep`             | `az bicep build` + lint on every template, then PSRule for Azure (`ps-rule.yaml`, with every exception justified inline)                                                                                                                                                                                                                                                                               |
+| `what-if`           | Matrix: `shared`, `dev`, `uat`, `prod`. Signs in as `id-atlas-github-plan` (`id-token: write`) and writes **redacted** what-if output to the job summary. **Runs only on `pull_request` events**, because the federated credential trusts only PR tokens, so it is skipped when `deploy.yml` reuses `ci.yml`. Also skipped for forks and Dependabot, which get no OIDC token. A skip counts as passing |
+| `pr-title`          | Conventional Commits check on the PR title (it becomes the squash commit message)                                                                                                                                                                                                                                                                                                                      |
+| `dependency-review` | Blocks new dependencies with known high-severity vulnerabilities or disallowed licenses                                                                                                                                                                                                                                                                                                                |
 
 ### `codeql.yml`
 
@@ -764,13 +786,13 @@ requests, pushes to `main` and weekly.
 **Triggers:** `push` to `main`, and `workflow_dispatch` with an optional
 `sha` input for rollback.
 
-| Job | Environment | Does |
-|---|---|---|
-| `ci` | – | `uses: ./.github/workflows/ci.yml` (skipped for rollback) |
-| `shared` | `shared` | `shared.bicep` |
-| `build` | `shared` | Builds web + api once, tags `<sha>`, runs Trivy, pushes to ACR, then `anchore/sbom-action` (SPDX) and `actions/attest-build-provenance` + `actions/attest-sbom` with `push-to-registry: true`. `attestations: write`, `id-token: write`. Skipped for rollback |
-| `dev` / `uat` / `prod` | `dev` / `uat` / `prod` | `uses: ./.github/workflows/deploy-env.yml` with `environment` and `sha`. Each needs the previous one. Approvals come from environment protection rules |
-| `release` | – | `gh release create prod-<yyyymmdd>-<shortsha> --generate-notes --target <sha>`. `contents: write` |
+| Job                    | Environment            | Does                                                                                                                                                                                                                                                          |
+| ---------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci`                   | –                      | `uses: ./.github/workflows/ci.yml` (skipped for rollback)                                                                                                                                                                                                     |
+| `shared`               | `shared`               | `shared.bicep`                                                                                                                                                                                                                                                |
+| `build`                | `shared`               | Builds web + api once, tags `<sha>`, runs Trivy, pushes to ACR, then `anchore/sbom-action` (SPDX) and `actions/attest-build-provenance` + `actions/attest-sbom` with `push-to-registry: true`. `attestations: write`, `id-token: write`. Skipped for rollback |
+| `dev` / `uat` / `prod` | `dev` / `uat` / `prod` | `uses: ./.github/workflows/deploy-env.yml` with `environment` and `sha`. Each needs the previous one. Approvals come from environment protection rules                                                                                                        |
+| `release`              | –                      | `gh release create prod-<yyyymmdd>-<shortsha> --generate-notes --target <sha>`. `contents: write`                                                                                                                                                             |
 
 ### `deploy-env.yml` (reusable)
 
@@ -800,35 +822,35 @@ one approval per environment. Its steps:
 
 **API (container environment variables):**
 
-| Variable | Value |
-|---|---|
-| `ATLAS_ENV` | `local` · `ci` · `dev` · `uat` · `prod` |
-| `APP_VERSION` | git SHA |
-| `PORT` | `3000` |
-| `LOG_LEVEL` | `info` (`debug` locally) |
-| `OIDC_ISSUER` | `https://login.microsoftonline.com/<tenant>/v2.0` (cloud) · mock issuer (local/ci) |
-| `OIDC_AUDIENCE` | `atlas-{env}-api` client ID |
-| `OIDC_JWKS_URI` | optional; defaults to OIDC discovery |
-| `REQUIRED_SCOPE` | `Notes.ReadWrite` |
-| `DB_AUTH` | `entra` (cloud) · `password` (local/ci) |
-| `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGSSLMODE` | server FQDN, `5432`, `atlas`, identity name, `require` |
-| `DATABASE_URL` | local/ci only |
-| `AZURE_CLIENT_ID` | the client ID of the API's (or migrator's) managed identity |
-| `API_PRINCIPAL_ID`, `API_ROLE_NAME` | migration job only: the runtime role to ensure |
-| `APPLICATIONINSIGHTS_CONNECTION_STRING` | from `appi-atlas-{env}` |
+| Variable                                                | Value                                                                              |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `ATLAS_ENV`                                             | `local` · `ci` · `dev` · `uat` · `prod`                                            |
+| `APP_VERSION`                                           | git SHA                                                                            |
+| `PORT`                                                  | `3000`                                                                             |
+| `LOG_LEVEL`                                             | `info` (`debug` locally)                                                           |
+| `OIDC_ISSUER`                                           | `https://login.microsoftonline.com/<tenant>/v2.0` (cloud) · mock issuer (local/ci) |
+| `OIDC_AUDIENCE`                                         | `atlas-{env}-api` client ID                                                        |
+| `OIDC_JWKS_URI`                                         | optional; defaults to OIDC discovery                                               |
+| `REQUIRED_SCOPE`                                        | `access_as_user`                                                                   |
+| `DB_AUTH`                                               | `entra` (cloud) · `password` (local/ci)                                            |
+| `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGSSLMODE` | server FQDN, `5432`, `atlas`, identity name, `require`                             |
+| `DATABASE_URL`                                          | local/ci only                                                                      |
+| `AZURE_CLIENT_ID`                                       | the client ID of the API's (or migrator's) managed identity                        |
+| `API_PRINCIPAL_ID`, `API_ROLE_NAME`                     | migration job only: the runtime role to ensure                                     |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING`                 | from `appi-atlas-{env}`                                                            |
 
 **Web (container environment variables, rendered into `/config.json`):**
 
-| Variable | Value |
-|---|---|
-| `ATLAS_ENV` | as above |
-| `AUTH_AUTHORITY` | `https://login.microsoftonline.com/<tenant>` (cloud) · mock issuer (local/ci) |
-| `AUTH_CLIENT_ID` | `atlas-{env}-web` client ID |
-| `AUTH_API_SCOPE` | `api://<api-client-id>/Notes.ReadWrite` |
-| `AUTH_PROTOCOL_MODE` | `AAD` (cloud) · `OIDC` (local/ci) |
-| `AUTH_KNOWN_AUTHORITIES` | mock host (local/ci only) |
-| `APPLICATIONINSIGHTS_CONNECTION_STRING` | from `appi-atlas-{env}` |
-| `API_UPSTREAM` | `ca-atlas-api-{env}` (nginx only, not rendered into JSON) |
+| Variable                                | Value                                                                         |
+| --------------------------------------- | ----------------------------------------------------------------------------- |
+| `ATLAS_ENV`                             | as above                                                                      |
+| `AUTH_AUTHORITY`                        | `https://login.microsoftonline.com/<tenant>` (cloud) · mock issuer (local/ci) |
+| `AUTH_CLIENT_ID`                        | `atlas-{env}-web` client ID                                                   |
+| `AUTH_API_SCOPE`                        | `api://<api-client-id>/access_as_user`                                        |
+| `AUTH_PROTOCOL_MODE`                    | `AAD` (cloud) · `OIDC` (local/ci)                                             |
+| `AUTH_KNOWN_AUTHORITIES`                | mock host (local/ci only)                                                     |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | from `appi-atlas-{env}`                                                       |
+| `API_UPSTREAM`                          | `ca-atlas-api-{env}` (nginx only, not rendered into JSON)                     |
 
 Local values live in git-ignored `.env` files. Committed `.env.example`
 files document every variable.
@@ -837,51 +859,51 @@ files document every variable.
 
 **ADRs written while building** (`docs/adr/NNNN-title.md`):
 
-| # | Decision |
-|---|---|
-| 0001 | npm-workspaces monorepo, `apps/` + `packages/` + `tests/` |
-| 0002 | Trunk-based development + build once / promote by SHA |
-| 0003 | Azure Container Apps (web external, API internal, migration job) |
+| #    | Decision                                                               |
+| ---- | ---------------------------------------------------------------------- |
+| 0001 | npm-workspaces monorepo, `apps/` + `packages/` + `tests/`              |
+| 0002 | Trunk-based development + build once / promote by SHA                  |
+| 0003 | Azure Container Apps (web external, API internal, migration job)       |
 | 0004 | No-secrets identity model (federated credentials + managed identities) |
-| 0005 | Postgres Entra-only auth, migrator vs runtime role, grants allowlist |
-| 0006 | Migrations as a pre-deploy job + expand/contract |
-| 0007 | Runtime web config (`/config.json`) |
-| 0008 | Network model, and dev's public Postgres endpoint |
-| 0009 | Mock OIDC for E2E tests, with the issuer guard |
-| 0010 | Single shared registry for all environments |
-| 0011 | Solo-developer ruleset (0 approvals) and what a team would change |
-| 0012 | Exclusions (below) |
+| 0005 | Postgres Entra-only auth, migrator vs runtime role, grants allowlist   |
+| 0006 | Migrations as a pre-deploy job + expand/contract                       |
+| 0007 | Runtime web config (`/config.json`)                                    |
+| 0008 | Network model, and dev's public Postgres endpoint                      |
+| 0009 | Mock OIDC for E2E tests, with the issuer guard                         |
+| 0010 | Single shared registry for all environments                            |
+| 0011 | Solo-developer ruleset (0 approvals) and what a team would change      |
+| 0012 | Exclusions (below)                                                     |
 
 **Excluded, with reasons (recorded in ADR 0012):**
 
-| Item | Why it's excluded | What a company would do |
-|---|---|---|
-| Subscription per environment (landing zones) | Only one subscription | Management groups, one subscription per environment |
-| Front Door + WAF, Azure Firewall, hub-and-spoke | $300–900 a month | Hub VNet, firewall egress, WAF at the edge |
-| API Management | The API is internal behind the web app | APIM in front of APIs shared between teams |
-| Postgres HA, geo-redundant backup | General Purpose tier needed, ~$280 a month | Zone-redundant HA in prod |
-| Key Vault | There are no secrets to store | Add when the first third-party credential appears |
-| Blue/green traffic shifting | Two apps would need to switch together | Multi-revision mode + labels + gradual traffic shift |
-| Private ACR / private endpoints for the registry | Needs ACR Premium | Premium + private endpoint |
-| Custom domain + managed certificate | No domain owned | Company DNS + managed certificates |
-| Defender for Cloud paid plans | Cost | Defender for Containers / Databases |
+| Item                                             | Why it's excluded                          | What a company would do                              |
+| ------------------------------------------------ | ------------------------------------------ | ---------------------------------------------------- |
+| Subscription per environment (landing zones)     | Only one subscription                      | Management groups, one subscription per environment  |
+| Front Door + WAF, Azure Firewall, hub-and-spoke  | $300–900 a month                           | Hub VNet, firewall egress, WAF at the edge           |
+| API Management                                   | The API is internal behind the web app     | APIM in front of APIs shared between teams           |
+| Postgres HA, geo-redundant backup                | General Purpose tier needed, ~$280 a month | Zone-redundant HA in prod                            |
+| Key Vault                                        | There are no secrets to store              | Add when the first third-party credential appears    |
+| Blue/green traffic shifting                      | Two apps would need to switch together     | Multi-revision mode + labels + gradual traffic shift |
+| Private ACR / private endpoints for the registry | Needs ACR Premium                          | Premium + private endpoint                           |
+| Custom domain + managed certificate              | No domain owned                            | Company DNS + managed certificates                   |
+| Defender for Cloud paid plans                    | Cost                                       | Defender for Containers / Databases                  |
 
 ## 18. Risks
 
-| Risk | Mitigation |
-|---|---|
-| The university disables the student account | Everything is code. Re-run `bootstrap.sh` + deploy elsewhere |
-| Tenant policy changes and blocks app registration | `bootstrap.sh` checks first. Fallback: a personal Entra tenant for the registrations (`ENTRA_TENANT_ID` is separate from `AZURE_TENANT_ID`) |
-| Postgres offer-restricted in `southeastasia` | Change `location` in `environments.json` to `eastasia`. The policy already allows it |
-| ACR Tasks blocked on free-credit subscriptions | Images are built on GitHub runners |
-| The tag-required Deny policy blocks a resource type that can't take tags | Found on the first dev deploy; switch that assignment to Audit and record it in the ADR |
-| Custom-role action lists are incomplete (what-if, cross-RG deploy) | Verified on dev first, with errors pointing to the missing action |
-| `pgaadauth_create_principal_with_oid` needs the `postgres` database | `migrate.ts` opens a separate connection for this step if required |
-| MSAL in `protocolMode: OIDC` doesn't work with the mock server | Fallback: with `ATLAS_ENV=ci`, the web app uses a test `AuthProvider` that gets tokens straight from the mock server. The API still fully validates those tokens, and its issuer guard rejects the mock in dev/uat/prod, so the flag can't bypass anything on the server |
-| Public-repo logs leak identifiers | `::add-mask::`, redacted summaries, no `set -x` in Azure steps |
-| Credit runs out, the subscription is disabled | Budget alerts. `teardown.sh all` at month end |
-| Scale-to-zero cold starts make smoke tests flaky | Smoke tests retry with backoff for up to ~2 minutes |
-| The prod delete lock blocks a deployment step | The lock only covers resource-group deletion. Child resources aren't deleted by incremental deployments |
+| Risk                                                                     | Mitigation                                                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| The university disables the student account                              | Everything is code. Re-run `bootstrap.sh` + deploy elsewhere                                                                                                                                                                                                             |
+| Tenant policy changes and blocks app registration                        | `bootstrap.sh` checks first. Fallback: a personal Entra tenant for the registrations (`ENTRA_TENANT_ID` is separate from `AZURE_TENANT_ID`)                                                                                                                              |
+| Postgres offer-restricted in `southeastasia`                             | Change `location` in `environments.json` to `eastasia`. The policy already allows it                                                                                                                                                                                     |
+| ACR Tasks blocked on free-credit subscriptions                           | Images are built on GitHub runners                                                                                                                                                                                                                                       |
+| The tag-required Deny policy blocks a resource type that can't take tags | Found on the first dev deploy; switch that assignment to Audit and record it in the ADR                                                                                                                                                                                  |
+| Custom-role action lists are incomplete (what-if, cross-RG deploy)       | Verified on dev first, with errors pointing to the missing action                                                                                                                                                                                                        |
+| `pgaadauth_create_principal_with_oid` needs the `postgres` database      | `migrate.ts` opens a separate connection for this step if required                                                                                                                                                                                                       |
+| MSAL in `protocolMode: OIDC` doesn't work with the mock server           | Fallback: with `ATLAS_ENV=ci`, the web app uses a test `AuthProvider` that gets tokens straight from the mock server. The API still fully validates those tokens, and its issuer guard rejects the mock in dev/uat/prod, so the flag can't bypass anything on the server |
+| Public-repo logs leak identifiers                                        | `::add-mask::`, redacted summaries, no `set -x` in Azure steps                                                                                                                                                                                                           |
+| Credit runs out, the subscription is disabled                            | Budget alerts. `teardown.sh all` at month end                                                                                                                                                                                                                            |
+| Scale-to-zero cold starts make smoke tests flaky                         | Smoke tests retry with backoff for up to ~2 minutes                                                                                                                                                                                                                      |
+| The prod delete lock blocks a deployment step                            | The lock only covers resource-group deletion. Child resources aren't deleted by incremental deployments                                                                                                                                                                  |
 
 ## 19. Prerequisites
 
@@ -894,17 +916,17 @@ files document every variable.
 
 Each milestone ends with `npm run check` green and a merged pull request.
 
-| # | Milestone | Ends with |
-|---|---|---|
-| M1 | Repo foundation | GitHub repo, workspaces, TS/ESLint/Prettier/husky, AGENTS.md, README/SECURITY/LICENSE/CODEOWNERS/PR template, `ci.yml` (`check`, `pr-title`, `dependency-review`), CodeQL, Dependabot, repo security settings, ruleset |
-| M2 | API + data | `@atlas/shared`, API (auth, notes, errors, logging), Drizzle schema + migrations + grants, migrator/app roles in compose, unit + HTTP + integration tests |
-| M3 | Web | React app, AuthProvider/MSAL, runtime config, API client, component tests |
-| M4 | Containers + E2E | Dockerfiles, nginx, compose `full` profile + mock OIDC, Playwright E2E, `build-images` + Trivy in CI |
-| M5 | Azure: shared + dev | `bootstrap.sh shared` + `dev` (identities, roles, app registrations, groups, environments, variables, policies, budget), all Bicep, `bicep` + `what-if` CI jobs, `deploy.yml` → dev green, redirect URI, sign-in works in dev |
-| M6 | UAT + prod | `bootstrap.sh uat` + `prod`, private Postgres networking, approvals, prod lock, promotion to prod, GitHub Release |
-| M7 | Observability | OpenTelemetry + App Insights (API + web), diagnostic settings, prod alerts + availability tests, runbooks |
-| M8 | Supply chain | SBOM + provenance attestations, SHA-pinned actions, PSRule exceptions reviewed |
-| M9 | Wrap-up | ADRs 0001–0012, docs pass, demo, then `teardown.sh all` before the credit ends |
+| #   | Milestone           | Ends with                                                                                                                                                                                                                     |
+| --- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | Repo foundation     | GitHub repo, workspaces, TS/ESLint/Prettier/husky, AGENTS.md, README/SECURITY/LICENSE/CODEOWNERS/PR template, `ci.yml` (`check`, `pr-title`, `dependency-review`), CodeQL, Dependabot, repo security settings, ruleset        |
+| M2  | API + data          | `@atlas/shared`, API (auth, notes, errors, logging), Drizzle schema + migrations + grants, migrator/app roles in compose, unit + HTTP + integration tests                                                                     |
+| M3  | Web                 | React app, AuthProvider/MSAL, runtime config, API client, component tests                                                                                                                                                     |
+| M4  | Containers + E2E    | Dockerfiles, nginx, compose `full` profile + mock OIDC, Playwright E2E, `build-images` + Trivy in CI                                                                                                                          |
+| M5  | Azure: shared + dev | `bootstrap.sh shared` + `dev` (identities, roles, app registrations, groups, environments, variables, policies, budget), all Bicep, `bicep` + `what-if` CI jobs, `deploy.yml` → dev green, redirect URI, sign-in works in dev |
+| M6  | UAT + prod          | `bootstrap.sh uat` + `prod`, private Postgres networking, approvals, prod lock, promotion to prod, GitHub Release                                                                                                             |
+| M7  | Observability       | OpenTelemetry + App Insights (API + web), diagnostic settings, prod alerts + availability tests, runbooks                                                                                                                     |
+| M8  | Supply chain        | SBOM + provenance attestations, SHA-pinned actions, PSRule exceptions reviewed                                                                                                                                                |
+| M9  | Wrap-up             | ADRs 0001–0012, docs pass, demo, then `teardown.sh all` before the credit ends                                                                                                                                                |
 
 The target for today (the original goal: coding, testing, OIDC, CI/CD) is
 **M1–M5**. M6–M9 follow over the next sessions.
