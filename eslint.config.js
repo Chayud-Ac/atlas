@@ -21,6 +21,17 @@ export default defineConfig(
     rules: {
       // Numbers in template literals are fine; the other strict defaults stay on.
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
+      // A leading underscore marks something as intentionally unused, e.g. Express's
+      // 4-argument error handler or `const { dropped: _dropped, ...rest } = obj`.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          ignoreRestSiblings: true,
+        },
+      ],
     },
   },
   {
