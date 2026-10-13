@@ -34,14 +34,26 @@ require_repo_admin() {
   fi
 }
 
+# The code_scanning rule compares a PR's CodeQL results with main's. Until main
+# has been analyzed once, the rule blocks every PR, including the first one that
+# adds CodeQL. So it's only added once main has results: re-run this script
+# after the first merge.
+main_has_codeql_results() {
+  local count
+  count="$(gh api "repos/$REPO/code-scanning/analyses?ref=refs/heads/main&tool_name=CodeQL&per_page=1" \
+    --jq 'length' 2>/dev/null || echo 0)"
+  [[ "$count" -gt 0 ]]
+}
+
+# Usage: ruleset_json <include_code_scanning: true|false>
 ruleset_json() {
-  printf '%s\n' "${REQUIRED_CHECKS[@]}" | jq -R . | jq -s '{
+  printf '%s\n' "${REQUIRED_CHECKS[@]}" | jq -R . | jq -s --argjson code_scanning "$1" '{
     name: "main",
     target: "branch",
     enforcement: "active",
     bypass_actors: [],
     conditions: { ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] } },
-    rules: [
+    rules: ([
       { type: "deletion" },
       { type: "non_fast_forward" },
       { type: "required_linear_history" },
@@ -54,12 +66,13 @@ ruleset_json() {
           allowed_merge_methods: ["squash"] } },
       { type: "required_status_checks", parameters: {
           strict_required_status_checks_policy: true,
-          required_status_checks: map({ context: . }) } },
+          required_status_checks: map({ context: . }) } }
+    ] + (if $code_scanning then [
       { type: "code_scanning", parameters: {
           code_scanning_tools: [
             { tool: "CodeQL", security_alerts_threshold: "high_or_higher", alerts_threshold: "errors" }
           ] } }
-    ]
+    ] else [] end))
   }'
 }
 
@@ -84,9 +97,16 @@ JSON
   log "Private vulnerability reporting"
   gh api --method PUT "repos/$REPO/private-vulnerability-reporting" --silent
 
-  log "Ruleset 'main' (required checks: ${#REQUIRED_CHECKS[@]})"
+  local code_scanning=false
+  if main_has_codeql_results; then
+    code_scanning=true
+  else
+    log "main has no CodeQL results yet: skipping the code_scanning rule. Re-run after the first merge."
+  fi
+
+  log "Ruleset 'main' (required checks: ${#REQUIRED_CHECKS[@]}, code scanning: $code_scanning)"
   local body id
-  body="$(ruleset_json)"
+  body="$(ruleset_json "$code_scanning")"
   id="$(gh api "repos/$REPO/rulesets" --jq '.[] | select(.name == "main") | .id')"
   if [[ -n "$id" ]]; then
     gh api --method PUT "repos/$REPO/rulesets/$id" --silent --input - <<<"$body"
