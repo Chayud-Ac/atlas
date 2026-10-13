@@ -248,6 +248,16 @@ describe('cross-cutting behaviour', () => {
 });
 
 describe('rate limiting', () => {
+  it('caps total traffic per replica before spending effort on authentication', async () => {
+    const app = buildApp({ replicaRateLimitPerMinute: 2 });
+    await request(app).get('/api/notes');
+    await request(app).get('/api/notes');
+
+    // Without a token this would normally be 401: the cap kicks in first.
+    const limited = await request(app).get('/api/notes');
+    expect(limited.status).toBe(429);
+  });
+
   it('limits each signed-in user and answers with a problem', async () => {
     const app = buildApp({ rateLimitPerMinute: 2 });
     const auth = await asAlice();

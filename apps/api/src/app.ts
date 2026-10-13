@@ -25,7 +25,11 @@ export interface AppDependencies {
   checkDatabase: () => Promise<void>;
   /** Per signed-in user, per replica. Defaults to 300. */
   rateLimitPerMinute?: number;
+  /** All callers together, per replica, checked before authentication. Defaults to 3000. */
+  replicaRateLimitPerMinute?: number;
 }
+
+const tooManyRequests = new HttpError(429, 'Too many requests. Try again in a minute.');
 
 /** Builds the Express app from its dependencies. No I/O happens here, so tests can inject fakes. */
 export function createApp(deps: AppDependencies): Express {
@@ -40,13 +44,27 @@ export function createApp(deps: AppDependencies): Express {
     healthRouter({ version: deps.version, checkDatabase: deps.checkDatabase }),
   );
 
+  // Two layers of rate limiting. Edge limiting (Front Door/APIM) is excluded on cost (spec §17).
+  // Neither is keyed by IP: browser traffic arrives through the web app's nginx, so every
+  // user shares one IP.
+  // 1. Replica circuit breaker, before authentication: token verification and the user
+  //    upsert are real work, so a flood of junk tokens must be capped before reaching them.
+  const replicaLimit = rateLimit({
+    windowMs: 60_000,
+    limit: deps.replicaRateLimitPerMinute ?? 3000,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    keyGenerator: () => 'replica',
+    handler: (_req, _res, next) => {
+      next(tooManyRequests);
+    },
+  });
   const signedIn = authenticate({
     verifier: deps.verifier,
     requiredScope: deps.requiredScope,
     users: deps.users,
   });
-  // Keyed by user, not IP: every browser request arrives through the web app's nginx,
-  // so all users share one IP. Edge rate limiting (Front Door/APIM) is excluded on cost (spec §17).
+  // 2. Per-user fairness, after authentication: one heavy user can't starve the others.
   const perUserLimit = rateLimit({
     windowMs: 60_000,
     limit: deps.rateLimitPerMinute ?? 300,
@@ -54,11 +72,11 @@ export function createApp(deps: AppDependencies): Express {
     legacyHeaders: false,
     keyGenerator: (req) => authOf(req).userId,
     handler: (_req, _res, next) => {
-      next(new HttpError(429, 'Too many requests. Try again in a minute.'));
+      next(tooManyRequests);
     },
   });
-  app.use('/api/me', signedIn, perUserLimit, meRouter());
-  app.use('/api/notes', signedIn, perUserLimit, notesRouter(deps.notes));
+  app.use('/api/me', replicaLimit, signedIn, perUserLimit, meRouter());
+  app.use('/api/notes', replicaLimit, signedIn, perUserLimit, notesRouter(deps.notes));
 
   app.use(notFound);
   app.use(errorHandler);
