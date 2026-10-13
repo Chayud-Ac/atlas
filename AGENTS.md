@@ -21,22 +21,28 @@ Atlas is a scaffold for internal company apps on Azure: React + Express in TypeS
 | `scripts/`  | `bootstrap.sh` and other operational scripts (bash, shellcheck-clean) |
 | `docs/`     | Specs, plans, ADRs, runbooks                                          |
 
-Current workspaces: `packages/shared`.
+Current workspaces: `packages/shared`, `apps/api`.
 
 ## Commands
 
 Run these from the repo root.
 
-| Command                     | Does                                                 |
-| --------------------------- | ---------------------------------------------------- |
-| `npm ci`                    | Install exactly what the lockfile says               |
-| `npm run check`             | **Definition of done**: lint + typecheck + all tests |
-| `npm run lint`              | ESLint, Prettier check, actionlint, shellcheck       |
-| `npm run format`            | Prettier write                                       |
-| `npm run typecheck`         | `tsc --build` across all workspaces                  |
-| `npm test`                  | Unit tests in every workspace (no Docker)            |
-| `npm run test:integration`  | Integration tests (need Docker)                      |
-| `npm test -w @atlas/shared` | Tests for one workspace                              |
+| Command                             | Does                                                                |
+| ----------------------------------- | ------------------------------------------------------------------- |
+| `npm ci`                            | Install exactly what the lockfile says                              |
+| `npm run check`                     | **Definition of done**: lint + typecheck + all tests                |
+| `npm run lint`                      | ESLint, Prettier check, actionlint, shellcheck                      |
+| `npm run format`                    | Prettier write                                                      |
+| `npm run typecheck`                 | `tsc --build` across all workspaces                                 |
+| `npm test`                          | Unit tests in every workspace (no Docker)                           |
+| `npm run test:integration`          | Integration tests (need Docker)                                     |
+| `npm test -w @atlas/shared`         | Tests for one workspace                                             |
+| `docker compose up -d --wait`       | Start local Postgres and the mock OIDC issuer                       |
+| `npm run db:migrate -w @atlas/api`  | Apply migrations and grants locally (needs `apps/api/.env.migrate`) |
+| `npm run dev -w @atlas/api`         | Run the API on :3000 with reload (needs `apps/api/.env`)            |
+| `npm run db:generate -w @atlas/api` | Generate a migration after editing `src/db/schema.ts`               |
+
+`npm run check` needs Docker running: the integration tests start Postgres with Testcontainers. To run one test file without the coverage gate failing on a partial run: `(cd apps/api && npx vitest run src/path/to.test.ts)`.
 
 ## Definition of done
 
@@ -56,6 +62,18 @@ Run these from the repo root.
 - **Base features ship in every app built on this scaffold:** sign-in, `app.users` (exposed as `GET /api/me` → `CurrentUser`), `app.audit_events`, and the health endpoints. Don't remove them.
 - **Notes is the reference feature.** It shows the full pattern: shared zod schema → migration → grants → repository → service → route → tests → UI. Copy its structure for your first real feature, then delete it.
 - **Authorization:** every endpoint requires the `access_as_user` scope. What a user _may do_ is decided by Entra App Roles (`req.auth.roles`), never by extra scopes or database role tables.
+
+## Adding a feature to the API (copy the notes pattern)
+
+1. **Contract:** zod schemas in `packages/shared/src/<feature>.ts`, with tests.
+2. **Table:** add it to `apps/api/src/db/schema.ts` → `npm run db:generate -w @atlas/api` → review the generated SQL (never hand-edit it).
+3. **Grants:** add the table to `APP_TABLE_GRANTS` in `apps/api/src/db/grants.ts`. The integration tests fail until you do.
+4. **Repository:** an interface plus `pg-<feature>-repository.ts`, and an in-memory double in `src/test/in-memory-store.ts`.
+5. **Service:** writes go through `unitOfWork.run(...)` and record an audit event in the same transaction.
+6. **Routes:** validate with `parseOrThrow`, take the caller from `authOf(req)`, and mount the router in `app.ts` behind `signedIn`.
+7. **Tests:** service unit tests, HTTP tests in `app.test.ts`, and `*.int.test.ts` for SQL behaviour such as ownership.
+
+API code rules: `import { Pool } from 'pg'` (pg ships native ESM); routes never touch the database directly; services throw `NotFoundError`/`HttpError`, and the error handler turns them into problem+json. Never send a raw error message to a client.
 
 ## Git and pull requests
 
