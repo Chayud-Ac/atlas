@@ -2,15 +2,16 @@
 
 A scaffold for internal company apps on Azure: React + Express in TypeScript, PostgreSQL, Azure Container Apps, Bicep and GitHub Actions, with **no stored secrets anywhere**.
 
-> **Status:** under construction. Milestone M2 (API + data) of M9. See the [design spec](docs/specs/2026-10-13-atlas-scaffold-design.md).
+> **Status:** under construction. Milestone M3 (web app) of M9. See the [design spec](docs/specs/2026-10-13-atlas-scaffold-design.md).
 
 ## What it demonstrates
 
 - npm-workspaces monorepo, type-aware linting, tests as the definition of done
+- React 19 web app (Vite, Fluent UI v9, TanStack Query) with Entra ID sign-in through MSAL and one build for every environment (runtime `/config.json`)
 - Express 5 API with Entra-style token validation, RFC 9457 errors and audit events
 - PostgreSQL with Entra-only auth in Azure, a least-privilege runtime role and migrations as a separate job, tested against real Postgres with Testcontainers
 - Every change goes through a pull request, gated by lint, type, test, dependency and CodeQL checks
-- (coming) Entra ID sign-in, GitHub Actions → Azure with OIDC, dev → uat → prod promotion of one immutable image
+- (coming) GitHub Actions → Azure with OIDC, dev → uat → prod promotion of one immutable image
 
 ## Quickstart
 
@@ -21,17 +22,21 @@ git clone https://github.com/Chayud-Ac/atlas.git
 cd atlas
 fnm use                       # reads .nvmrc → Node 24
 npm ci
-npm run check                 # lint + typecheck + unit + integration tests (needs Docker)
+npm run check                 # lint + typecheck + build + all tests (needs Docker)
 
-# Run the API locally
+# Run the app locally
 docker compose up -d --wait   # Postgres + mock OIDC issuer
 cp apps/api/.env.example apps/api/.env
 cp apps/api/.env.migrate.example apps/api/.env.migrate
+cp apps/web/config.example.json apps/web/public/config.json
 npm run db:migrate -w @atlas/api
-npm run dev -w @atlas/api     # http://localhost:3000/api/health/live
+npm run dev -w @atlas/api     # terminal 1: http://localhost:3000/api/health/live
+npm run dev -w @atlas/web     # terminal 2: http://localhost:5173
 ```
 
-Get a local token from the mock issuer and call the API:
+Open http://localhost:5173 and click **Sign in**. Locally, sign-in uses the mock OIDC issuer, so there's no password: you're "Local Developer" (ADR 0007).
+
+Or call the API directly with a token from the mock issuer:
 
 ```bash
 TOKEN=$(curl -s -X POST localhost:8090/atlas/token -d grant_type=client_credentials \

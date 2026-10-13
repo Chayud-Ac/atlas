@@ -1,0 +1,20 @@
+/*
+ * The only global styles: a small reset. Components style themselves with
+ * Fluent UI's makeStyles and design tokens, next to the component.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}
