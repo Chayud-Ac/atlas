@@ -33,6 +33,9 @@
     "lint:format": "prettier --check .",
     "lint:ts": "eslint --max-warnings=0 .",
     "lint": "npm run lint:ts && npm run lint:format",
-    "typecheck": "tsc --build"
+    "typecheck": "tsc --build",
+    "test": "npm run test --workspaces --if-present",
+    "test:integration": "npm run test:integration --workspaces --if-present",
+    "check": "npm run lint && npm run typecheck && npm test && npm run test:integration"
   }
 }
