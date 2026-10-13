@@ -1811,3 +1811,15 @@ Expected: `## main...origin/main` with no changes.
 - [ ] Secret scanning push protection, Dependabot alerts and security updates are enabled.
 
 **Next:** write `docs/plans/2026-10-13-m2-api-data.md` (API, Drizzle, migrations, grants, Testcontainers) against the merged M1 state.
+
+---
+
+## Execution notes (added after merge)
+
+What happened while executing this plan, for the next person who runs a plan like it:
+
+- **CodeQL flagged `actions/unpinned-tag`** on `pr-title.yml`. The third-party action is now pinned to a commit SHA (`# v6.1.1`). Tags are mutable; SHAs are not.
+- **The first PR was blocked with "Waiting for Code Scanning results".** `main` had never been analyzed, because the CodeQL workflow only arrived in that PR. `bootstrap.sh` now adds the `code_scanning` rule only once `main` has CodeQL results. Re-run `scripts/bootstrap.sh repo` after the first merge.
+- **Commit emails were rewritten** to the GitHub no-reply address before the first push, and the repo-local `user.email` is set to it.
+- **macOS `/bin/bash` is 3.2.** `source <(...)` silently loads nothing there. `bootstrap.sh` itself was verified on 3.2.
+- **Agent shells started before the `~/.zshrc` change** need `eval "$(fnm env --shell zsh)"` to get Node 24.
