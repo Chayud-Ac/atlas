@@ -1,0 +1,85 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { Writable } from 'node:stream';
+import { describe, expect, it } from 'vitest';
+import { createLogger, genReqId } from './logging.js';
+
+function captureLogs() {
+  const lines: string[] = [];
+  const stream = new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      lines.push(chunk.toString());
+      callback();
+    },
+  });
+  return { lines, stream };
+}
+
+describe('createLogger', () => {
+  it('never writes bearer tokens or cookies to the log', () => {
+    const { lines, stream } = captureLogs();
+    const logger = createLogger('info', stream);
+
+    logger.info(
+      {
+        req: {
+          headers: { authorization: 'Bearer secret-token', cookie: 'session=abc', accept: 'json' },
+        },
+      },
+      'request',
+    );
+
+    const line = lines[0] ?? '';
+    expect(line).not.toContain('secret-token');
+    expect(line).not.toContain('session=abc');
+    const entry = JSON.parse(line) as { req: { headers: Record<string, string> } };
+    expect(entry.req.headers).toEqual({
+      authorization: '[redacted]',
+      cookie: '[redacted]',
+      accept: 'json',
+    });
+  });
+
+  it('respects the level', () => {
+    const { lines, stream } = captureLogs();
+    createLogger('warn', stream).info('hidden');
+    expect(lines).toEqual([]);
+  });
+});
+
+function fakeExchange(requestId?: string) {
+  const headers: Record<string, string> = {};
+  const req = { headers: requestId === undefined ? {} : { 'x-request-id': requestId } };
+  const res = {
+    setHeader(name: string, value: string) {
+      headers[name] = value;
+    },
+  };
+  return {
+    req: req as unknown as IncomingMessage,
+    res: res as unknown as ServerResponse,
+    headers,
+  };
+}
+
+describe('genReqId', () => {
+  it("reuses a caller's safe request id and echoes it", () => {
+    const { req, res, headers } = fakeExchange('frontend-7f3a.42');
+    expect(genReqId(req, res)).toBe('frontend-7f3a.42');
+    expect(headers['x-request-id']).toBe('frontend-7f3a.42');
+  });
+
+  it('mints a UUID when the caller sends none', () => {
+    const { req, res } = fakeExchange();
+    expect(genReqId(req, res)).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('replaces ids that could forge log lines', () => {
+    const { req, res } = fakeExchange('ok\n{"level":"fatal","msg":"forged"}');
+    expect(genReqId(req, res)).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('replaces ids longer than 128 characters', () => {
+    const { req, res } = fakeExchange('a'.repeat(129));
+    expect(genReqId(req, res)).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});

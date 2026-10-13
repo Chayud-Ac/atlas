@@ -9,7 +9,7 @@ describe('CurrentUser', () => {
     roles: ['Admin'],
   };
 
-  it('accepts a user as GET /api/me returns it', () => {
+  it('accepts a user as GET /api/users/me returns it', () => {
     expect(CurrentUser.parse(user)).toEqual(user);
   });
 

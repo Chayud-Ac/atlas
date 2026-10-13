@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /**
- * The signed-in user, as returned by GET /api/me.
+ * The signed-in user, as returned by GET /api/users/me.
  * `id` is the app's own users.id, never an Entra identifier. `roles` comes from the
  * token's `roles` claim (Entra App Roles) and is always present, even when empty.
  */
