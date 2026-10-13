@@ -2,7 +2,7 @@
 
 - **Date:** 2026-10-13
 - **Author:** Chayud Mahithiphark (with Claude Code)
-- **Status:** Approved (v2.1)
+- **Status:** Approved (v2.2)
 - **Changes from v1:** three environments, build once and promote,
   per-environment identities, private networking, migrations as a job,
   least-privilege database role, runtime web config, observability,
@@ -11,6 +11,9 @@
   `GET /api/me` exposes the base `app.users` table, and the API scope is
   renamed from `Notes.ReadWrite` to the conventional `access_as_user`
   (authorization stays with App Roles).
+- **Changes in v2.2:** `GET /api/me` moves to `GET /api/users/me`, so the users
+  router owns every `/users` endpoint. The API source follows the
+  `<feature>.<role>.ts` layout (ADR 0014).
 
 ## 1. Purpose
 
@@ -28,7 +31,7 @@ A small **notes** feature exists only so that every layer carries real
 traffic. Notes are not the product. They're the **reference feature**: copy
 their structure (schema, migration, grants, repository, service, route,
 tests, UI) for the first real feature, then delete them. The **base
-features** stay in every app: `app.users` (exposed as `GET /api/me`),
+features** stay in every app: `app.users` (exposed as `GET /api/users/me`),
 `app.audit_events`, sign-in and health checks.
 
 **Constraints.**
@@ -507,7 +510,7 @@ missing from that list.
 | ------ | ------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | GET    | `/api/health/live`  | none             | `200 { status, version }`. `version` = `APP_VERSION` (git SHA). Liveness probe                                                    |
 | GET    | `/api/health/ready` | none             | 200 when `SELECT 1` succeeds. Readiness probe                                                                                     |
-| GET    | `/api/me`           | `access_as_user` | The signed-in user as `CurrentUser`: the `app.users` row (`id`, `displayName`, `email`) plus `roles` from the token. Base feature |
+| GET    | `/api/users/me`     | `access_as_user` | The signed-in user as `CurrentUser`: the `app.users` row (`id`, `displayName`, `email`) plus `roles` from the token. Base feature |
 | GET    | `/api/notes`        | `access_as_user` | The caller's notes, newest first                                                                                                  |
 | POST   | `/api/notes`        | `access_as_user` | Creates a note, returns 201 + note                                                                                                |
 | DELETE | `/api/notes/:id`    | `access_as_user` | 204 if the caller owns it, otherwise 404                                                                                          |
@@ -543,7 +546,7 @@ missing from that list.
 
 - **App:** Vite + React with TypeScript.
   - A header (base feature) shows the signed-in user's name from
-    `GET /api/me`, with a sign-out button.
+    `GET /api/users/me`, with a sign-out button.
   - One notes page (reference feature): a list, a create form validated with
     the shared zod schema, and delete.
 - **Runtime config:** `main.tsx` fetches `/config.json` _before_ creating
@@ -701,13 +704,13 @@ files.
 - **API routes:** Supertest against `createApp` with a fake verifier and
   in-memory repositories:
   - problem+json shape
-  - `/api/me` returns the upserted user with `roles` taken from the token
+  - `/api/users/me` returns the upserted user with `roles` taken from the token
   - 404 for notes that aren't yours
   - ordering
   - delete
   - `x-request-id` echoed back
 - **Web:** React Testing Library + MSW with a fake `AuthProvider`:
-  - the header shows the signed-in user's name from `/api/me`
+  - the header shows the signed-in user's name from `/api/users/me`
   - list rendering
   - form validation messages
   - delete
@@ -737,7 +740,7 @@ files.
   `protocolMode: "OIDC"` and `knownAuthorities`.
 - **The API** trusts it only because `ATLAS_ENV=ci` (§6.3).
 - **Scenarios:**
-  - sign in, and the header shows the mock user's name (from `/api/me`)
+  - sign in, and the header shows the mock user's name (from `/api/users/me`)
   - create a note, see it, reload and still see it, delete it, see it gone
   - a second user can't see the first user's notes
   - a direct `/api/notes` call without a token returns 401

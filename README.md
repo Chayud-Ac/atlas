@@ -36,7 +36,7 @@ Get a local token from the mock issuer and call the API:
 ```bash
 TOKEN=$(curl -s -X POST localhost:8090/atlas/token -d grant_type=client_credentials \
   -d client_id=local-dev -d client_secret=unused -d scope=access_as_user | jq -r .access_token)
-curl -s localhost:3000/api/me -H "Authorization: Bearer $TOKEN"
+curl -s localhost:3000/api/users/me -H "Authorization: Bearer $TOKEN"
 ```
 
 ## Docs

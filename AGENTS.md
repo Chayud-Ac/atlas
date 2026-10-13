@@ -53,13 +53,13 @@ Run these from the repo root.
 - **TypeScript:** strict, ESM, `module: nodenext`. Relative imports end in `.js` (`import { Note } from './notes.js'`). TypeScript is pinned to 6.0.x (ADR 0013), so don't upgrade it to 7.
 - **Tests sit next to the code:** `*.test.ts` for unit tests, `*.int.test.ts` for integration tests. Write the failing test first for new behaviour.
 - **Validation:** zod schemas in `@atlas/shared` are the single source of truth for request and response shapes. Infer types with `z.infer`. Never hand-write a duplicate type.
-- **Files:** small, with one job each. Split a file when it passes ~200 lines or starts doing two things.
-- **Naming:** files `kebab-case.ts`, types and schemas `PascalCase`, functions and variables `camelCase`, database tables and columns `snake_case`.
+- **Files: group code that changes together** (ADR 0014). A feature is three files: `<feature>.routes.ts`, `<feature>.service.ts` (when there is business logic) and `<feature>.repository.ts`, which holds the record types, the interface _and_ the Postgres implementation. Split a file only when it passes ~200 lines or has two unrelated reasons to change. Don't create a file for one small type, class or function.
+- **Naming:** feature folders use `<feature>.<role>.ts` with a plural feature name (`notes.routes.ts`, `users.repository.ts`). Cross-cutting code uses descriptive kebab-case (`authenticate.ts`, `logging.ts`). Tests mirror their subject (`notes.service.test.ts`, `users.repository.int.test.ts`). Types and schemas are `PascalCase`, functions and variables `camelCase`, database tables and columns `snake_case`.
 - **Intentionally unused:** prefix with `_` (`_next`, `const { secret: _secret, ...safe } = obj`). Everything else unused is a lint error.
 
 ## Base features and the reference feature
 
-- **Base features ship in every app built on this scaffold:** sign-in, `app.users` (exposed as `GET /api/me` → `CurrentUser`), `app.audit_events`, and the health endpoints. Don't remove them.
+- **Base features ship in every app built on this scaffold:** sign-in, `app.users` (exposed as `GET /api/users/me` → `CurrentUser`), `app.audit_events`, and the health endpoints. Don't remove them.
 - **Notes is the reference feature.** It shows the full pattern: shared zod schema → migration → grants → repository → service → route → tests → UI. Copy its structure for your first real feature, then delete it.
 - **Authorization:** every endpoint requires the `access_as_user` scope. What a user _may do_ is decided by Entra App Roles (`req.auth.roles`), never by extra scopes or database role tables.
 
@@ -67,11 +67,24 @@ Run these from the repo root.
 
 1. **Contract:** zod schemas in `packages/shared/src/<feature>.ts`, with tests.
 2. **Table:** add it to `apps/api/src/db/schema.ts` → `npm run db:generate -w @atlas/api` → review the generated SQL (never hand-edit it).
-3. **Grants:** add the table to `APP_TABLE_GRANTS` in `apps/api/src/db/grants.ts`. The integration tests fail until you do.
-4. **Repository:** an interface plus `pg-<feature>-repository.ts`, and an in-memory double in `src/test/in-memory-store.ts`.
-5. **Service:** writes go through `unitOfWork.run(...)` and record an audit event in the same transaction.
-6. **Routes:** validate with `parseOrThrow`, take the caller from `authOf(req)`, and mount the router in `app.ts` behind `signedIn`.
+3. **Grants:** add the table to `APP_TABLE_GRANTS` in `apps/api/src/db/migrations.ts`. The integration tests fail until you do.
+4. **Repository:** `src/<feature>/<feature>.repository.ts` (types, interface and Postgres implementation), plus an in-memory double in `src/test/in-memory-store.ts`. If it joins the unit of work, add it to `Repositories` in `src/db/database.ts`.
+5. **Service:** `<feature>.service.ts`. Writes go through `unitOfWork.run(...)` and record an audit event in the same transaction.
+6. **Routes:** `<feature>.routes.ts`. Validate with `parseOrThrow`, take the caller from `authOf(req)`, and mount the router in `app.ts` behind `replicaLimit, signedIn, perUserLimit`.
 7. **Tests:** service unit tests, HTTP tests in `app.test.ts`, and `*.int.test.ts` for SQL behaviour such as ownership.
+
+API layout:
+
+| Path                              | Holds                                                                                                           |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `src/app.ts`                      | Middleware order, rate limits, router mounting                                                                  |
+| `src/server.ts`, `src/migrate.ts` | The two entrypoints (API, migration job)                                                                        |
+| `src/config.ts`                   | Environment validation, including the issuer guard                                                              |
+| `src/logging.ts`                  | pino logger with redaction, request ids                                                                         |
+| `src/errors.ts`                   | `NotFoundError`, `HttpError`, `parseOrThrow`, problem+json error handler                                        |
+| `src/auth/`                       | `tokens.ts` (claims, verifier, OIDC discovery), `authenticate.ts` (middleware, `authOf`)                        |
+| `src/db/`                         | `schema.ts` (tables), `database.ts` (pool, Entra tokens, unit of work), `migrations.ts` (grants, migration job) |
+| `src/<feature>/`                  | `users/`, `notes/`, `audit/`, `health/`                                                                         |
 
 API code rules: `import { Pool } from 'pg'` (pg ships native ESM); routes never touch the database directly; services throw `NotFoundError`/`HttpError`, and the error handler turns them into problem+json. Never send a raw error message to a client.
 
@@ -91,4 +104,4 @@ API code rules: `import { Pool } from 'pg'` (pg ships native ESM); routes never 
 
 - Schema changes only through committed Drizzle migrations.
 - **Expand, then contract.** Every migration must work with both the current and the previous API version. To rename or drop something: add the new thing → ship → switch reads and writes → ship → remove the old thing.
-- A new table must be added to the grants allowlist (`apps/api/src/db/grants.ts`), or the API can't read it.
+- A new table must be added to the grants allowlist (`APP_TABLE_GRANTS` in `apps/api/src/db/migrations.ts`), or the API can't read it.
