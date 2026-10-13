@@ -11,7 +11,7 @@ test-results/
 # Local configuration. Never commit real values (public repo, spec §6.2)
 .env
 .env.*
-!.env.example
+!.env*.example
 apps/web/public/config.json
 
 # OS and editor noise
