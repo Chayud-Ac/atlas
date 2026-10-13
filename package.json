@@ -30,6 +30,8 @@
   },
   "scripts": {
     "format": "prettier --write .",
-    "lint:format": "prettier --check ."
+    "lint:format": "prettier --check .",
+    "lint:ts": "eslint --max-warnings=0 .",
+    "lint": "npm run lint:ts && npm run lint:format"
   }
 }
