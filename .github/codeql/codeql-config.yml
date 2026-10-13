@@ -1,0 +1,8 @@
+# CodeQL analyses what ships. Test code and test helpers are never deployed, and
+# scanning them only produces alerts on deliberately unsafe fixtures.
+name: atlas
+paths-ignore:
+  - '**/*.test.ts'
+  - '**/*.test.tsx'
+  - '**/src/test/**'
+  - 'tests/**'
