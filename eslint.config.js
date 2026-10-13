@@ -4,6 +4,8 @@ import js from '@eslint/js';
 import { defineConfig, globalIgnores } from 'eslint/config';
 import prettier from 'eslint-config-prettier/flat';
 import globals from 'globals';
+import reactHooks from 'eslint-plugin-react-hooks';
+import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default defineConfig(
@@ -33,6 +35,19 @@ export default defineConfig(
         },
       ],
     },
+  },
+  {
+    // Browser code: the Rules of Hooks, plus browser globals.
+    files: ['apps/web/**/*.{ts,tsx}'],
+    ignores: ['apps/web/*.config.ts'],
+    extends: [reactHooks.configs.flat.recommended],
+    languageOptions: { globals: globals.browser },
+  },
+  {
+    // Fast Refresh needs component files to export only components. Tests are exempt.
+    files: ['apps/web/src/**/*.tsx'],
+    ignores: ['**/*.test.tsx', 'apps/web/src/test/**'],
+    extends: [reactRefresh.configs.vite],
   },
   {
     files: ['**/*.{js,mjs,cjs}', '**/*.config.ts'],
