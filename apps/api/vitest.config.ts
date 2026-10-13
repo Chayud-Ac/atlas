@@ -19,14 +19,11 @@ export default defineConfig({
       exclude: [
         'src/**/*.test.ts',
         'src/test/**',
-        // Wiring and Postgres code: exercised by the integration tests instead.
+        // Entrypoints and Postgres code: exercised by the integration tests instead.
         'src/server.ts',
         'src/migrate.ts',
-        'src/db/schema.ts',
-        'src/db/client.ts',
-        'src/db/entra-token.ts',
-        'src/db/migration-job.ts',
-        'src/**/pg-*.ts',
+        'src/db/**',
+        'src/**/*.repository.ts',
       ],
       reporter: ['text', 'json-summary'],
       thresholds: { lines: 80 },

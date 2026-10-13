@@ -1,9 +1,9 @@
 import type { CreateNoteInput } from '@atlas/shared';
 import { v7 as uuidv7 } from 'uuid';
-import type { AuditEvent, AuditRepository } from '../audit/audit-repository.js';
-import type { NoteRecord, NotesRepository } from '../notes/notes-repository.js';
-import type { UnitOfWork } from '../unit-of-work.js';
-import type { User, UsersRepository } from '../users/user.js';
+import type { AuditEvent, AuditRepository } from '../audit/audit.repository.js';
+import type { NoteRecord, NotesRepository } from '../notes/notes.repository.js';
+import type { UnitOfWork } from '../db/database.js';
+import type { User, UsersRepository } from '../users/users.repository.js';
 
 /** In-memory test doubles for the repositories. Unit tests only; Postgres is tested separately. */
 export function createInMemoryStore() {

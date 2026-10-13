@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { PostgreSqlContainer, type StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { Client, escapeLiteral, Pool } from 'pg';
 import type { TestProject } from 'vitest/node';
-import { runMigrationJob } from '../db/migration-job.js';
-import { createLogger } from '../logger.js';
+import { runMigrationJob } from '../db/migrations.js';
+import { createLogger } from '../logging.js';
 import { APP_ROLE, MIGRATIONS_FOLDER } from './postgres.js';
 
 declare module 'vitest' {

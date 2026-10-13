@@ -2,18 +2,15 @@ import express, { type Express } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
-import { authOf } from './auth/auth-context.js';
-import { authenticate } from './auth/authenticate.js';
-import type { TokenVerifier } from './auth/token-verifier.js';
-import { healthRouter } from './health/health-routes.js';
-import { errorHandler, notFound } from './http/error-handler.js';
-import { HttpError } from './http/http-error.js';
-import { genReqId } from './http/request-id.js';
-import type { Logger } from './logger.js';
-import { notesRouter } from './notes/notes-routes.js';
-import type { NotesService } from './notes/notes-service.js';
-import { meRouter } from './users/me-routes.js';
-import type { UsersRepository } from './users/user.js';
+import { authenticate, authOf } from './auth/authenticate.js';
+import type { TokenVerifier } from './auth/tokens.js';
+import { errorHandler, HttpError, notFound } from './errors.js';
+import { healthRouter } from './health/health.routes.js';
+import { genReqId, type Logger } from './logging.js';
+import { notesRouter } from './notes/notes.routes.js';
+import type { NotesService } from './notes/notes.service.js';
+import type { UsersRepository } from './users/users.repository.js';
+import { usersRouter } from './users/users.routes.js';
 
 export interface AppDependencies {
   version: string;
@@ -75,7 +72,7 @@ export function createApp(deps: AppDependencies): Express {
       next(tooManyRequests);
     },
   });
-  app.use('/api/me', replicaLimit, signedIn, perUserLimit, meRouter());
+  app.use('/api/users', replicaLimit, signedIn, perUserLimit, usersRouter());
   app.use('/api/notes', replicaLimit, signedIn, perUserLimit, notesRouter(deps.notes));
 
   app.use(notFound);

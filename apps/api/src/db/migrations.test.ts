@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { APP_TABLE_GRANTS, grantStatements } from './grants.js';
+import { APP_TABLE_GRANTS, grantStatements } from './migrations.js';
 
 describe('grantStatements', () => {
   it('re-applies the allowlist from scratch for the role', () => {

@@ -2,9 +2,9 @@ import express, { type Express } from 'express';
 import { pinoHttp } from 'pino-http';
 import request from 'supertest';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { errorHandler } from '../http/error-handler.js';
-import { genReqId } from '../http/request-id.js';
-import { createLogger } from '../logger.js';
+import { errorHandler } from '../errors.js';
+import { genReqId } from '../logging.js';
+import { createLogger } from '../logging.js';
 import { createInMemoryStore, type InMemoryStore } from '../test/in-memory-store.js';
 import {
   ALICE,
@@ -15,7 +15,7 @@ import {
   type TestIssuer,
 } from '../test/test-issuer.js';
 import { authenticate } from './authenticate.js';
-import { createTokenVerifier } from './token-verifier.js';
+import { createTokenVerifier } from './tokens.js';
 
 let issuer: TestIssuer;
 let store: InMemoryStore;

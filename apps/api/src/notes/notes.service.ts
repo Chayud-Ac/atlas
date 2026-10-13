@@ -1,7 +1,7 @@
 import type { CreateNoteInput } from '@atlas/shared';
+import type { UnitOfWork } from '../db/database.js';
 import { NotFoundError } from '../errors.js';
-import type { UnitOfWork } from '../unit-of-work.js';
-import type { NoteRecord } from './notes-repository.js';
+import type { NoteRecord } from './notes.repository.js';
 
 /** Who is acting, for ownership checks and the audit trail. */
 export interface Actor {

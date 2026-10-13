@@ -1,13 +1,13 @@
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createDatabase, type Database } from '../db/client.js';
-import { createPgUnitOfWork } from '../db/pg-unit-of-work.js';
+import { createDatabase, type Database } from '../db/database.js';
+import { createPgUnitOfWork } from '../db/database.js';
 import { NotFoundError } from '../errors.js';
 import { connectAs, resetData } from '../test/postgres.js';
 import { ALICE, BOB } from '../test/test-issuer.js';
-import type { UnitOfWork } from '../unit-of-work.js';
-import { createPgUsersRepository } from '../users/pg-users-repository.js';
-import { createNotesService, type Actor } from './notes-service.js';
+import type { UnitOfWork } from '../db/database.js';
+import { createPgUsersRepository } from '../users/users.repository.js';
+import { createNotesService, type Actor } from './notes.service.js';
 
 let migrator: Pool;
 let app: Pool;

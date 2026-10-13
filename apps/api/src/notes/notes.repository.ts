@@ -1,7 +1,24 @@
+import type { CreateNoteInput } from '@atlas/shared';
 import { and, desc, eq } from 'drizzle-orm';
-import type { Executor } from '../db/client.js';
+import type { Executor } from '../db/database.js';
 import { notes } from '../db/schema.js';
-import type { NotesRepository } from './notes-repository.js';
+
+export interface NoteRecord {
+  id: string;
+  ownerId: string;
+  title: string;
+  body: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NotesRepository {
+  /** The owner's notes, newest first. */
+  listByOwner(ownerId: string): Promise<NoteRecord[]>;
+  create(ownerId: string, input: CreateNoteInput): Promise<NoteRecord>;
+  /** Deletes the note only if `ownerId` owns it. Resolves false otherwise. */
+  deleteOwned(ownerId: string, noteId: string): Promise<boolean>;
+}
 
 export function createPgNotesRepository(db: Executor): NotesRepository {
   return {

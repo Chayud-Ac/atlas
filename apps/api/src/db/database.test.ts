@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ENTRA_DB_SCOPE, poolConfig, type TokenProvider } from './pool.js';
+import { ENTRA_DB_SCOPE, poolConfig, type TokenProvider } from './database.js';
 
 describe('poolConfig', () => {
   it('uses the connection string for password auth', () => {

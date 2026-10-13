@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { HttpError } from '../http/http-error.js';
+import { HttpError } from '../errors.js';
 
 export interface HealthOptions {
   /** The git SHA of the running build (APP_VERSION); the smoke test compares it. */

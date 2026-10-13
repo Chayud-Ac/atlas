@@ -1,10 +1,10 @@
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { createDatabase } from '../db/client.js';
+import { createDatabase } from '../db/database.js';
 import { connectAs, resetData } from '../test/postgres.js';
 import { ALICE } from '../test/test-issuer.js';
-import { createPgUsersRepository } from './pg-users-repository.js';
-import type { UserIdentity, UsersRepository } from './user.js';
+import { createPgUsersRepository } from './users.repository.js';
+import type { UserIdentity, UsersRepository } from './users.repository.js';
 
 const identity: UserIdentity = {
   entraTenantId: ALICE.tid,

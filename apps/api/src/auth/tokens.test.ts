@@ -8,7 +8,7 @@ import {
   type SignOptions,
   type TestIssuer,
 } from '../test/test-issuer.js';
-import { createTokenVerifier, type TokenVerifier } from './token-verifier.js';
+import { createTokenVerifier, discoverJwksUri, type TokenVerifier } from './tokens.js';
 
 let issuer: TestIssuer;
 let verifier: TokenVerifier;
@@ -55,5 +55,38 @@ describe('createTokenVerifier', () => {
 
   it('rejects something that is not a JWT', async () => {
     await expect(verifier.verify('not-a-jwt')).rejects.toThrow();
+  });
+});
+
+function fakeFetch(status: number, body: unknown) {
+  const calls: string[] = [];
+  const fetchFn = ((input: string | URL | Request) => {
+    calls.push(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+    return Promise.resolve(new Response(JSON.stringify(body), { status }));
+  }) as typeof fetch;
+  return { calls, fetchFn };
+}
+
+describe('discoverJwksUri', () => {
+  it("reads jwks_uri from the issuer's OpenID configuration", async () => {
+    const { calls, fetchFn } = fakeFetch(200, {
+      issuer: TEST_ISSUER,
+      jwks_uri: 'https://keys.example/jwks',
+    });
+    await expect(discoverJwksUri(TEST_ISSUER, fetchFn)).resolves.toBe('https://keys.example/jwks');
+    expect(calls).toEqual([`${TEST_ISSUER}/.well-known/openid-configuration`]);
+  });
+
+  it('fails when the discovery document is unavailable', async () => {
+    const { fetchFn } = fakeFetch(404, {});
+    await expect(discoverJwksUri(TEST_ISSUER, fetchFn)).rejects.toThrow(/404/);
+  });
+
+  it('fails when the document belongs to a different issuer', async () => {
+    const { fetchFn } = fakeFetch(200, {
+      issuer: 'https://evil.example',
+      jwks_uri: 'https://evil.example/jwks',
+    });
+    await expect(discoverJwksUri(TEST_ISSUER, fetchFn)).rejects.toThrow(/issuer mismatch/);
   });
 });

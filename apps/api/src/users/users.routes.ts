@@ -1,11 +1,12 @@
 import { CurrentUser } from '@atlas/shared';
 import { Router } from 'express';
-import { authOf } from '../auth/auth-context.js';
+import { authOf } from '../auth/authenticate.js';
 
-/** GET /api/me: the signed-in user. A base feature that every app keeps. */
-export function meRouter(): Router {
+/** Mounted at /api/users. `GET /me` is a base feature that every app keeps. */
+export function usersRouter(): Router {
   const router = Router();
-  router.get('/', (req, res) => {
+
+  router.get('/me', (req, res) => {
     const auth = authOf(req);
     // Parsing the response guarantees the contract, and that nothing extra leaks out.
     res.json(
@@ -17,5 +18,6 @@ export function meRouter(): Router {
       }),
     );
   });
+
   return router;
 }

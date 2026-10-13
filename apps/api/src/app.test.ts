@@ -3,9 +3,9 @@ import type { Express } from 'express';
 import request from 'supertest';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createApp, type AppDependencies } from './app.js';
-import { createTokenVerifier } from './auth/token-verifier.js';
-import { createLogger } from './logger.js';
-import { createNotesService, type NotesService } from './notes/notes-service.js';
+import { createTokenVerifier } from './auth/tokens.js';
+import { createLogger } from './logging.js';
+import { createNotesService, type NotesService } from './notes/notes.service.js';
 import { createInMemoryStore, type InMemoryStore } from './test/in-memory-store.js';
 import {
   BOB,
@@ -76,16 +76,16 @@ describe('health', () => {
   });
 });
 
-describe('GET /api/me', () => {
+describe('GET /api/users/me', () => {
   it('requires a token', async () => {
-    const res = await request(buildApp()).get('/api/me');
+    const res = await request(buildApp()).get('/api/users/me');
     expect(res.status).toBe(401);
     expect(Problem.parse(res.body).status).toBe(401);
   });
 
   it('returns the signed-in user', async () => {
     const res = await request(buildApp())
-      .get('/api/me')
+      .get('/api/users/me')
       .set('Authorization', await asAlice());
     expect(res.status).toBe(200);
     expect(CurrentUser.parse(res.body)).toMatchObject({
@@ -97,7 +97,7 @@ describe('GET /api/me', () => {
 
   it('passes through app roles from the token', async () => {
     const token = `Bearer ${await issuer.sign({ roles: ['Admin'] })}`;
-    const res = await request(buildApp()).get('/api/me').set('Authorization', token);
+    const res = await request(buildApp()).get('/api/users/me').set('Authorization', token);
     expect(CurrentUser.parse(res.body).roles).toEqual(['Admin']);
   });
 });
@@ -274,11 +274,11 @@ describe('rate limiting', () => {
   it('counts users separately, because they all arrive through the same proxy', async () => {
     const app = buildApp({ rateLimitPerMinute: 1 });
     await request(app)
-      .get('/api/me')
+      .get('/api/users/me')
       .set('Authorization', await asAlice());
 
     const bob = await request(app)
-      .get('/api/me')
+      .get('/api/users/me')
       .set('Authorization', await asBob());
 
     expect(bob.status).toBe(200);

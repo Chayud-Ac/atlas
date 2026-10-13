@@ -1,14 +1,15 @@
-import { CreateNoteInput } from '@atlas/shared';
+import { CreateNoteInput, type Note } from '@atlas/shared';
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import { authOf } from '../auth/auth-context.js';
-import { requestIdOf } from '../http/request-id.js';
-import { parseOrThrow } from '../http/validate.js';
-import { toNoteDto } from './note-dto.js';
-import type { Actor, NotesService } from './notes-service.js';
+import { authOf } from '../auth/authenticate.js';
+import { parseOrThrow } from '../errors.js';
+import { requestIdOf } from '../logging.js';
+import type { NoteRecord } from './notes.repository.js';
+import type { Actor, NotesService } from './notes.service.js';
 
 const NoteIdParams = z.object({ id: z.uuid() });
 
+/** Mounted at /api/notes. */
 export function notesRouter(notes: NotesService): Router {
   const router = Router();
 
@@ -34,4 +35,15 @@ export function notesRouter(notes: NotesService): Router {
 
 function actorOf(req: Request): Actor {
   return { userId: authOf(req).userId, requestId: requestIdOf(req) };
+}
+
+/** The API's JSON shape for a note: no owner id, ISO 8601 timestamps. */
+function toNoteDto(record: NoteRecord): Note {
+  return {
+    id: record.id,
+    title: record.title,
+    body: record.body,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+  };
 }

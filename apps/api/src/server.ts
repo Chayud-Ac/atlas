@@ -1,25 +1,17 @@
 import { createRemoteJWKSet } from 'jose';
 import { Pool } from 'pg';
 import { createApp } from './app.js';
-import { discoverJwksUri } from './auth/discovery.js';
-import { createTokenVerifier } from './auth/token-verifier.js';
+import { createTokenVerifier, discoverJwksUri } from './auth/tokens.js';
 import { loadApiConfig } from './config.js';
-import { createDatabase } from './db/client.js';
-import { managedIdentityTokens } from './db/entra-token.js';
-import { createPgUnitOfWork } from './db/pg-unit-of-work.js';
-import { poolConfig, type TokenProvider } from './db/pool.js';
-import { createLogger } from './logger.js';
-import { createNotesService } from './notes/notes-service.js';
-import { createPgUsersRepository } from './users/pg-users-repository.js';
+import { createDatabase, createPgUnitOfWork, poolConfig, tokenProviderFor } from './db/database.js';
+import { createLogger } from './logging.js';
+import { createNotesService } from './notes/notes.service.js';
+import { createPgUsersRepository } from './users/users.repository.js';
 
 const config = loadApiConfig(process.env);
 const logger = createLogger(config.logLevel);
 
-const tokens: TokenProvider =
-  config.db.auth === 'entra'
-    ? managedIdentityTokens(config.db.clientId)
-    : () => Promise.reject(new Error('Entra tokens are not used with password auth'));
-const pool = new Pool(poolConfig(config.db, tokens));
+const pool = new Pool(poolConfig(config.db, tokenProviderFor(config.db)));
 const db = createDatabase(pool);
 
 const jwksUri = config.oidc.jwksUri ?? (await discoverJwksUri(config.oidc.issuer));

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { NotFoundError } from '../errors.js';
 import { createInMemoryStore, type InMemoryStore } from '../test/in-memory-store.js';
-import { createNotesService, type Actor, type NotesService } from './notes-service.js';
+import { createNotesService, type Actor, type NotesService } from './notes.service.js';
 
 const alice: Actor = { userId: '0199c3a0-0000-7000-8000-00000000000a', requestId: 'req-alice' };
 const bob: Actor = { userId: '0199c3a0-0000-7000-8000-00000000000b', requestId: 'req-bob' };

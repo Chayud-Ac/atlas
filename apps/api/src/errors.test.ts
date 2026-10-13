@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NotFoundError } from '../errors.js';
-import { HttpError } from './http-error.js';
-import { toProblem } from './problem.js';
+import { HttpError, NotFoundError, toProblem } from './errors.js';
 
 describe('toProblem', () => {
   it('uses the status, detail and field errors of an HttpError', () => {

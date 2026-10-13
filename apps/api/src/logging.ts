@@ -1,5 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { pino, type DestinationStream, type Logger } from 'pino';
+
+export type { Logger } from 'pino';
+
+/** Credentials that must never reach the logs (Log Analytics is readable by many people). */
+const REDACTED_PATHS = [
+  'req.headers.authorization',
+  'req.headers.cookie',
+  'res.headers["set-cookie"]',
+];
+
+export function createLogger(level: string, destination?: DestinationStream): Logger {
+  return pino({ level, redact: { paths: REDACTED_PATHS, censor: '[redacted]' } }, destination);
+}
 
 const SAFE_REQUEST_ID = /^[A-Za-z0-9._-]{1,128}$/;
 

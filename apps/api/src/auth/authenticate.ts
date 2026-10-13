@@ -1,8 +1,29 @@
-import type { RequestHandler } from 'express';
-import { HttpError } from '../http/http-error.js';
-import type { UserIdentity, UsersRepository } from '../users/user.js';
-import type { AccessTokenClaims } from './claims.js';
-import type { TokenVerifier } from './token-verifier.js';
+import type { Request, RequestHandler } from 'express';
+import { HttpError } from '../errors.js';
+import type { UserIdentity, UsersRepository } from '../users/users.repository.js';
+import type { AccessTokenClaims, TokenVerifier } from './tokens.js';
+
+/** The signed-in caller, attached by the authenticate middleware. */
+export interface AuthContext {
+  userId: string;
+  oid: string;
+  tid: string;
+  roles: string[];
+  name: string | null;
+  email: string | null;
+}
+
+declare module 'express-serve-static-core' {
+  interface Request {
+    auth?: AuthContext;
+  }
+}
+
+/** The signed-in caller. Throws if a route forgot the authenticate middleware. */
+export function authOf(req: Request): AuthContext {
+  if (!req.auth) throw new Error('authOf() called on a route without the authenticate middleware');
+  return req.auth;
+}
 
 export interface AuthenticateOptions {
   verifier: TokenVerifier;

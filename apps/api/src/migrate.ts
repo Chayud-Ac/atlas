@@ -1,19 +1,13 @@
 import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
 import { loadMigratorConfig } from './config.js';
-import { managedIdentityTokens } from './db/entra-token.js';
-import { runMigrationJob } from './db/migration-job.js';
-import { poolConfig, type TokenProvider } from './db/pool.js';
-import { createLogger } from './logger.js';
+import { poolConfig, tokenProviderFor } from './db/database.js';
+import { runMigrationJob } from './db/migrations.js';
+import { createLogger } from './logging.js';
 
 const config = loadMigratorConfig(process.env);
 const logger = createLogger(config.logLevel);
-
-const tokens: TokenProvider =
-  config.db.auth === 'entra'
-    ? managedIdentityTokens(config.db.clientId)
-    : () => Promise.reject(new Error('Entra tokens are not used with password auth'));
-const pool = new Pool(poolConfig(config.db, tokens));
+const pool = new Pool(poolConfig(config.db, tokenProviderFor(config.db)));
 
 try {
   await runMigrationJob(pool, {
