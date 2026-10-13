@@ -3,8 +3,8 @@ import {
   InteractionRequiredAuthError,
   type IPublicClientApplication,
 } from '@azure/msal-browser';
-import type { AuthSettings } from '../config.js';
-import { type Auth, untilNavigation } from './auth.js';
+import type { AuthSettings } from '@/lib/config';
+import { type Auth, untilNavigation } from './auth-context';
 
 /** The part of MSAL this app uses. Tests pass a fake with just these. */
 export type MsalClient = Pick<

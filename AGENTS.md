@@ -54,11 +54,14 @@ Run these from the repo root.
 
 ## Conventions
 
-- **TypeScript:** strict, ESM, `module: nodenext` (the web app uses `bundler` resolution). Relative imports end in `.js` everywhere, including the web app, where TypeScript and Vite map `./app.js` to `app.tsx`. TypeScript is pinned to 6.0.x (ADR 0013), so don't upgrade it to 7.
+- **TypeScript:** strict, ESM. TypeScript is pinned to 6.0.x (ADR 0013), so don't upgrade it to 7.
+  - API and shared use `module: nodenext`, so relative imports end in `.js` (`import { Note } from './notes.js'`).
+  - The web app uses Vite's `bundler` resolution: no extensions, and `@/` means `apps/web/src/` (`import { useAuth } from '@/lib/auth/auth-context'`). Use `./` only within the same folder.
 - **Tests sit next to the code:** `*.test.ts` for unit tests, `*.int.test.ts` for integration tests. Write the failing test first for new behaviour.
 - **Validation:** zod schemas in `@atlas/shared` are the single source of truth for request and response shapes. Infer types with `z.infer`. Never hand-write a duplicate type.
-- **Files: group code that changes together** (ADR 0014). A feature is three files: `<feature>.routes.ts`, `<feature>.service.ts` (when there is business logic) and `<feature>.repository.ts`, which holds the record types, the interface _and_ the Postgres implementation. Split a file only when it passes ~200 lines or has two unrelated reasons to change. Don't create a file for one small type, class or function.
-- **Naming:** feature folders use `<feature>.<role>.ts` with a plural feature name (`notes.routes.ts`, `users.repository.ts`; in the web app `notes.api.ts`, `notes.page.tsx`). Cross-cutting code uses descriptive kebab-case (`authenticate.ts`, `logging.ts`). Tests mirror their subject (`notes.service.test.ts`, `users.repository.int.test.ts`). Types and schemas are `PascalCase`, functions and variables `camelCase`, database tables and columns `snake_case`.
+- **API files: group code that changes together** (ADR 0014). A feature is three files: `<feature>.routes.ts`, `<feature>.service.ts` (when there is business logic) and `<feature>.repository.ts`, which holds the record types, the interface _and_ the Postgres implementation. Split a file only when it passes ~200 lines or has two unrelated reasons to change. Don't create a file for one small type, class or function.
+- **Web files follow the Bulletproof React layout** (ADR 0015): `app/`, `components/`, `features/<feature>/{api,components}/`, `lib/`, `styles/`, `testing/`. Files are kebab-case (`note-form.tsx` exports `NoteForm`).
+- **Naming:** API feature folders use `<feature>.<role>.ts` with a plural feature name (`notes.routes.ts`, `users.repository.ts`). Cross-cutting code uses descriptive kebab-case (`authenticate.ts`, `logging.ts`). Tests mirror their subject (`notes.service.test.ts`, `users.repository.int.test.ts`). Types and schemas are `PascalCase`, functions and variables `camelCase`, database tables and columns `snake_case`.
 - **Intentionally unused:** prefix with `_` (`_next`, `const { secret: _secret, ...safe } = obj`). Everything else unused is a lint error.
 
 ## Base features and the reference feature
@@ -76,10 +79,12 @@ Run these from the repo root.
 5. **Service:** `<feature>.service.ts`. Writes go through `unitOfWork.run(...)` and record an audit event in the same transaction.
 6. **Routes:** `<feature>.routes.ts`. Validate with `parseOrThrow`, take the caller from `authOf(req)`, and mount the router in `app.ts` behind `replicaLimit, signedIn, perUserLimit`.
 7. **Tests:** service unit tests, HTTP tests in `app.test.ts`, and `*.int.test.ts` for SQL behaviour such as ownership.
-8. **UI:**
-   - `apps/web/src/<feature>/<feature>.api.ts` holds the TanStack Query hooks. They call `useApi()`, and every response is parsed with the shared schema.
-   - `<feature>.page.tsx` holds the components.
-   - `<feature>.page.test.tsx` renders the whole app with `renderApp()` against the fake API in `src/test/server.ts`. Add the feature's handlers there.
+8. **UI** in `apps/web/src/features/<feature>/`:
+   - `api/use-<feature>.ts` holds the TanStack Query hooks. They call `useApi()`, and every response is parsed with the shared schema.
+   - `components/` holds the components: a `<feature>-page.tsx` plus its parts (`note-form.tsx`, `note-card.tsx`). UI shared by two or more features goes in `src/components/`.
+   - `components/<feature>-page.test.tsx` renders the whole app with `renderApp()` against the fake API in `src/testing/mock-api.ts`. Add the feature's handlers there.
+
+API layout (`apps/api/`):
 
 | Path                              | Holds                                                                                                           |
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -94,23 +99,26 @@ Run these from the repo root.
 
 API code rules: `import { Pool } from 'pg'` (pg ships native ESM); routes never touch the database directly; services throw `NotFoundError`/`HttpError`, and the error handler turns them into problem+json. Never send a raw error message to a client.
 
-Web layout (`apps/web/src/`):
+Web layout (`apps/web/src/`, Bulletproof React style, ADR 0015):
 
-| Path                | Holds                                                                                           |
-| ------------------- | ----------------------------------------------------------------------------------------------- |
-| `main.tsx`          | Startup: load `/config.json` → create `Auth` → render. The only file without tests              |
-| `app.tsx`           | Providers (Fluent, TanStack Query, `AuthContext`), header, signed-out prompt                    |
-| `config.ts`         | `RuntimeConfig` zod schema and loader, including the mock-only-locally guard                    |
-| `api.ts`            | `ApiError`, `createApiClient` (bearer token, schema-checked responses, 401 → sign in), `useApi` |
-| `error-message.tsx` | Shows a failed request with its request id                                                      |
-| `auth/`             | `auth.ts` (`Auth` interface, `useAuth`), `msal-auth.ts` (Entra ID), `mock-auth.ts` (local/ci)   |
-| `<feature>/`        | `users/` (`users.api.ts`, `users.header.tsx`), `notes/` (`notes.api.ts`, `notes.page.tsx`)      |
-| `test/`             | `setup.ts` (MSW lifecycle), `server.ts` (fake API), `render.tsx` (`fakeAuth`, `renderApp`)      |
+| Path                  | Holds                                                                                                     |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| `main.tsx`            | Startup: load `/config.json` → create `Auth` → render. The only file without tests                        |
+| `app/`                | `app.tsx` (layout: header, signed-out prompt, page), `providers.tsx` (Fluent theme, TanStack Query, auth) |
+| `styles/global.css`   | The only global CSS: a small reset. Components style themselves with Fluent's `makeStyles` and tokens     |
+| `components/`         | Shared UI used by two or more features (`error-message.tsx`)                                              |
+| `features/<feature>/` | `api/` (TanStack Query hooks) and `components/` (UI) per feature: `users/`, `notes/`                      |
+| `lib/`                | Infrastructure without UI: `config.ts` (`/config.json`), `api-client.ts` (fetch wrapper), `auth/`         |
+| `lib/auth/`           | `auth-context.ts` (`Auth` interface, `useAuth`), `msal-auth.ts` (Entra ID), `mock-auth.ts` (local/ci)     |
+| `testing/`            | `setup.ts` (MSW lifecycle), `mock-api.ts` (fake API), `test-utils.tsx` (`fakeAuth`, `renderApp`)          |
+
+Imports flow one way: `app` → `features` → `components` / `lib`. A feature never imports another feature; shared code moves to `components/` or `lib/`.
 
 Web code rules:
 
 - **Components never import MSAL.** They use `useAuth()`.
-- **Data goes through `<feature>.api.ts` hooks,** never `fetch` in a component.
+- **Data goes through the feature's `api/` hooks,** never `fetch` in a component. Server data lives in TanStack Query, not in hand-written React contexts.
+- **Styling is Fluent UI v9:** components from `@fluentui/react-components`, styles with `makeStyles` and `tokens` next to the component. No Tailwind, and no CSS files besides `styles/global.css`.
 - **Show failures with `<ErrorMessage>`.** It shows only API problem details (never raw errors) and the request id.
 - **Validate forms with the shared zod schema** before calling the API, then map any problem `errors` from the API onto the fields.
 - **Tests go through MSW.** Never mock `fetch` by hand. Query by role and label (`getByRole('button', { name: 'Add note' })`), as a user or screen reader would.

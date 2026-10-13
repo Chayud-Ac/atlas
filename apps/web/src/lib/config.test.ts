@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
-import { ConfigError, loadRuntimeConfig, RuntimeConfig } from './config.js';
-import { server } from './test/server.js';
+import { ConfigError, loadRuntimeConfig, RuntimeConfig } from './config';
+import { server } from '@/testing/mock-api';
 
 const msalConfig = {
   env: 'dev',

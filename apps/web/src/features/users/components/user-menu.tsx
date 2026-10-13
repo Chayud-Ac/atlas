@@ -1,9 +1,9 @@
 import { Button, Persona } from '@fluentui/react-components';
-import { useAuth } from '../auth/auth.js';
-import { useCurrentUser } from './users.api.js';
+import { useAuth } from '@/lib/auth/auth-context';
+import { useCurrentUser } from '../api/use-current-user';
 
 /** The signed-in user and a sign-out button, for the app header (a base feature). */
-export function UserHeader() {
+export function UserMenu() {
   const { signOut } = useAuth();
   const { data: me } = useCurrentUser();
   return (

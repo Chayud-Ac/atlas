@@ -1,5 +1,5 @@
 import { MessageBar, MessageBarBody, MessageBarTitle } from '@fluentui/react-components';
-import { ApiError } from './api.js';
+import { ApiError } from '@/lib/api-client';
 
 /**
  * A failed request. Only API problem details are shown: other errors may hold

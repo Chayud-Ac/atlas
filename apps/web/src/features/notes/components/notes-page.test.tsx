@@ -1,8 +1,8 @@
 import { screen, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { renderApp } from '../test/render.js';
-import { makeNote, notesDb, problem, server } from '../test/server.js';
+import { renderApp } from '@/testing/test-utils';
+import { makeNote, notesDb, problem, server } from '@/testing/mock-api';
 
 describe('NotesPage', () => {
   it('lists your notes in the order the API returns them', async () => {

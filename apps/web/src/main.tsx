@@ -1,10 +1,12 @@
+import './styles/global.css';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App } from './app.js';
-import type { Auth } from './auth/auth.js';
-import { createMockAuth } from './auth/mock-auth.js';
-import { createMsalAuth, createMsalClient } from './auth/msal-auth.js';
-import { loadRuntimeConfig, type RuntimeConfig } from './config.js';
+import { App } from '@/app/app';
+import { AppProviders } from '@/app/providers';
+import type { Auth } from '@/lib/auth/auth-context';
+import { createMockAuth } from '@/lib/auth/mock-auth';
+import { createMsalAuth, createMsalClient } from '@/lib/auth/msal-auth';
+import { loadRuntimeConfig, type RuntimeConfig } from '@/lib/config';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('index.html has no #root element');
@@ -15,7 +17,9 @@ try {
   const auth = await createAuth(config);
   root.render(
     <StrictMode>
-      <App auth={auth} />
+      <AppProviders auth={auth}>
+        <App />
+      </AppProviders>
     </StrictMode>,
   );
 } catch (error) {

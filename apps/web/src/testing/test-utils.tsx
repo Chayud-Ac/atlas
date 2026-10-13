@@ -1,8 +1,9 @@
 import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
-import { App } from '../app.js';
-import type { Auth } from '../auth/auth.js';
+import { App } from '@/app/app';
+import { AppProviders } from '@/app/providers';
+import type { Auth } from '@/lib/auth/auth-context';
 
 /** A signed-in user unless overridden. signIn and signOut are spies. */
 export function fakeAuth(overrides: Partial<Auth> = {}) {
@@ -15,7 +16,14 @@ export function fakeAuth(overrides: Partial<Auth> = {}) {
   };
 }
 
-/** Renders the whole app, as a user would see it, against the MSW fake API. */
+/** Renders the whole app as main.tsx does, against the fake API in mock-api.ts. */
 export function renderApp(auth: Auth = fakeAuth()) {
-  return { user: userEvent.setup(), ...render(<App auth={auth} />) };
+  return {
+    user: userEvent.setup(),
+    ...render(
+      <AppProviders auth={auth}>
+        <App />
+      </AppProviders>,
+    ),
+  };
 }

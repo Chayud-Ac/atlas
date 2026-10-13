@@ -1,7 +1,7 @@
 import { type CreateNoteInput, Note } from '@atlas/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
-import { useApi } from '../api.js';
+import { useApi } from '@/lib/api-client';
 
 const NOTES_KEY = ['notes'];
 const NoteList = z.array(Note);

@@ -1,6 +1,6 @@
 import { CurrentUser } from '@atlas/shared';
 import { useQuery } from '@tanstack/react-query';
-import { useApi } from '../api.js';
+import { useApi } from '@/lib/api-client';
 
 /** The signed-in user as the API sees them, including their App Roles (`roles`). */
 export function useCurrentUser() {

@@ -1,8 +1,8 @@
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
-import type { AuthSettings } from '../config.js';
-import { server } from '../test/server.js';
-import { createMockAuth } from './mock-auth.js';
+import type { AuthSettings } from '@/lib/config';
+import { server } from '@/testing/mock-api';
+import { createMockAuth } from './mock-auth';
 
 const settings: AuthSettings = {
   kind: 'mock',

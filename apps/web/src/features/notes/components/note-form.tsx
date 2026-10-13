@@ -1,22 +1,10 @@
-import { CreateNoteInput, type Note } from '@atlas/shared';
-import {
-  Button,
-  Card,
-  CardHeader,
-  Field,
-  Input,
-  makeStyles,
-  Spinner,
-  Text,
-  Textarea,
-  Title2,
-  tokens,
-} from '@fluentui/react-components';
+import { CreateNoteInput } from '@atlas/shared';
+import { Button, Field, Input, makeStyles, Textarea, tokens } from '@fluentui/react-components';
 import { type SubmitEvent, useState } from 'react';
 import { z } from 'zod';
-import { ApiError } from '../api.js';
-import { ErrorMessage } from '../error-message.js';
-import { useCreateNote, useDeleteNote, useNotes } from './notes.api.js';
+import { ErrorMessage } from '@/components/error-message';
+import { ApiError } from '@/lib/api-client';
+import { useCreateNote } from '../api/use-notes';
 
 type FieldErrors = Partial<Record<keyof CreateNoteInput, string>>;
 
@@ -27,28 +15,10 @@ const useStyles = makeStyles({
     gap: tokens.spacingVerticalM,
     marginBlock: tokens.spacingVerticalL,
   },
-  list: {
-    listStyleType: 'none',
-    padding: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tokens.spacingVerticalS,
-  },
-  body: { whiteSpace: 'pre-wrap' },
 });
 
-/** The reference feature: create, list and delete your own notes. */
-export function NotesPage() {
-  return (
-    <section>
-      <Title2 as="h1">Notes</Title2>
-      <CreateNoteForm />
-      <NoteList />
-    </section>
-  );
-}
-
-function CreateNoteForm() {
+/** Creates a note. Validates with the API's own schema before sending anything. */
+export function NoteForm() {
   const styles = useStyles();
   const createNote = useCreateNote();
   const [title, setTitle] = useState('');
@@ -113,64 +83,4 @@ function fieldErrorsFrom(error: ApiError): FieldErrors {
     if (path === 'title' || path === 'body') errors[path] ??= message;
   }
   return errors;
-}
-
-function NoteList() {
-  const styles = useStyles();
-  const notes = useNotes();
-  const deleteNote = useDeleteNote();
-
-  if (notes.isPending) return <Spinner label="Loading notes" />;
-  if (notes.isError) return <ErrorMessage error={notes.error} />;
-  if (notes.data.length === 0) return <Text>No notes yet.</Text>;
-
-  return (
-    <>
-      {deleteNote.isError && <ErrorMessage error={deleteNote.error} />}
-      <ul className={styles.list} aria-label="Notes">
-        {notes.data.map((note) => (
-          <li key={note.id}>
-            <NoteCard
-              note={note}
-              deleting={deleteNote.isPending && deleteNote.variables === note.id}
-              onDelete={() => {
-                deleteNote.mutate(note.id);
-              }}
-            />
-          </li>
-        ))}
-      </ul>
-    </>
-  );
-}
-
-function NoteCard({
-  note,
-  deleting,
-  onDelete,
-}: {
-  note: Note;
-  deleting: boolean;
-  onDelete: () => void;
-}) {
-  const styles = useStyles();
-  return (
-    <Card>
-      <CardHeader
-        header={<Text weight="semibold">{note.title}</Text>}
-        description={<Text size={200}>{new Date(note.createdAt).toLocaleString()}</Text>}
-        action={
-          <Button
-            appearance="subtle"
-            aria-label={`Delete ${note.title}`}
-            disabled={deleting}
-            onClick={onDelete}
-          >
-            Delete
-          </Button>
-        }
-      />
-      {note.body && <Text className={styles.body}>{note.body}</Text>}
-    </Card>
-  );
 }

@@ -1,8 +1,8 @@
 import { screen, waitFor } from '@testing-library/react';
 import { http } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { fakeAuth, renderApp } from './test/render.js';
-import { problem, server } from './test/server.js';
+import { fakeAuth, renderApp } from '@/testing/test-utils';
+import { problem, server } from '@/testing/mock-api';
 
 describe('App', () => {
   it('asks a signed-out visitor to sign in', async () => {

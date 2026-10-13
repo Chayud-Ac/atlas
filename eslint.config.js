@@ -46,7 +46,7 @@ export default defineConfig(
   {
     // Fast Refresh needs component files to export only components. Tests are exempt.
     files: ['apps/web/src/**/*.tsx'],
-    ignores: ['**/*.test.tsx', 'apps/web/src/test/**'],
+    ignores: ['**/*.test.tsx', 'apps/web/src/testing/**'],
     extends: [reactRefresh.configs.vite],
   },
   {

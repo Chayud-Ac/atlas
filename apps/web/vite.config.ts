@@ -6,6 +6,8 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      // `@/lib/config` means apps/web/src/lib/config, the usual Vite + React convention.
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
       // Build from @atlas/shared's source: no separate build step, and Vite bundles it anyway.
       '@atlas/shared': fileURLToPath(
         new URL('../../packages/shared/src/index.ts', import.meta.url),
@@ -37,13 +39,13 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    setupFiles: ['src/test/setup.ts'],
+    setupFiles: ['src/testing/setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
     restoreMocks: true,
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
-      exclude: ['src/**/*.test.{ts,tsx}', 'src/test/**', 'src/main.tsx'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/testing/**', 'src/main.tsx'],
       reporter: ['text', 'json-summary'],
       // Reported only, no threshold for web (spec §14.4).
     },

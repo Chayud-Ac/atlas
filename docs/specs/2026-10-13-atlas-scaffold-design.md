@@ -18,6 +18,7 @@
   sign-in uses a small mock provider instead of MSAL in `protocolMode: OIDC`
   (`auth.kind` in `/config.json`). The web app uses `@azure/msal-browser`
   without `@azure/msal-react`, and Fluent UI v9 with TanStack Query (ADR 0007).
+  Its source follows the Bulletproof React layout (ADR 0015).
 
 ## 1. Purpose
 
@@ -886,6 +887,9 @@ files document every variable.
 | 0010 | Single shared registry for all environments                            |
 | 0011 | Solo-developer ruleset (0 approvals) and what a team would change      |
 | 0012 | Exclusions (below)                                                     |
+| 0013 | Pin TypeScript 6.0 until typescript-eslint supports 7                  |
+| 0014 | API file layout: `<feature>.<role>.ts`                                 |
+| 0015 | Web file layout: Bulletproof React                                     |
 
 **Excluded, with reasons (recorded in ADR 0012):**
 

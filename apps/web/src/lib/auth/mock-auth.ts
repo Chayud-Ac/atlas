@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import type { AuthSettings } from '../config.js';
-import { type Auth, untilNavigation } from './auth.js';
+import type { AuthSettings } from '@/lib/config';
+import { type Auth, untilNavigation } from './auth-context';
 
 const STORAGE_KEY = 'atlas.mock-token';
 /** Renew a minute early, so a token never expires between reading it and using it. */

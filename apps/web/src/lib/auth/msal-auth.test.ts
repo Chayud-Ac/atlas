@@ -4,7 +4,7 @@ import {
   InteractionRequiredAuthError,
 } from '@azure/msal-browser';
 import { describe, expect, it, vi } from 'vitest';
-import { createMsalAuth, type MsalClient } from './msal-auth.js';
+import { createMsalAuth, type MsalClient } from './msal-auth';
 
 const SCOPE = 'api://api-client-id/access_as_user';
 const account: AccountInfo = {

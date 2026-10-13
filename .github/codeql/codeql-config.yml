@@ -5,4 +5,5 @@ paths-ignore:
   - '**/*.test.ts'
   - '**/*.test.tsx'
   - '**/src/test/**'
+  - '**/src/testing/**'
   - 'tests/**'

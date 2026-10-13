@@ -1,8 +1,8 @@
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { ApiError, createApiClient } from './api.js';
-import { problem, server } from './test/server.js';
+import { ApiError, createApiClient } from './api-client';
+import { problem, server } from '@/testing/mock-api';
 
 const Thing = z.object({ id: z.string() });
 

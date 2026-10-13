@@ -33,5 +33,5 @@
 - **One web image runs everywhere,** and a config change needs a restart, not a rebuild. `/config.json` must be served `no-store` (nginx, M4).
 - **MSAL itself is only exercised against real Entra,** in deployed environments: the M5 sign-in check and manual use. Unit tests cover our wrapper's logic (silent token, a redirect when interaction is required, other errors passed on) with a fake client.
 - **A company would add Entra-backed E2E tests in UAT,** using a dedicated test user excluded from MFA by conditional access.
-- **The mock path ships in the production bundle,** because E2E tests run the production build. It's a small part of the 7 kB app chunk, and it can only be turned on through `/config.json`, which the schema and the API's issuer guard both reject outside local and CI.
+- **The mock path ships in the production bundle,** because E2E tests run the production build. It is a small part of the 10 kB app chunk, and it can only be turned on through `/config.json`, which the schema and the API's issuer guard both reject outside local and CI.
 - **The container variables `AUTH_PROTOCOL_MODE` and `AUTH_KNOWN_AUTHORITIES` become `AUTH_KIND`** (spec §16).

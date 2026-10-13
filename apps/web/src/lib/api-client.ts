@@ -1,7 +1,7 @@
 import { Problem } from '@atlas/shared';
 import { useMemo } from 'react';
 import type { z } from 'zod';
-import { type Auth, untilNavigation, useAuth } from './auth/auth.js';
+import { type Auth, untilNavigation, useAuth } from './auth/auth-context';
 
 /** A non-2xx API response, with its RFC 9457 problem body. */
 export class ApiError extends Error {
