@@ -1,0 +1,10 @@
+# The build context for both Dockerfiles is the repo root. The Dockerfiles copy only what they
+# name, but a small context builds faster, and what's excluded here can't be copied by mistake.
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+apps/web/public/config.json
+.git
