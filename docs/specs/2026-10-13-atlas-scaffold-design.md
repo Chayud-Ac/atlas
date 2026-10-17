@@ -71,7 +71,7 @@ Items excluded on cost or tenant grounds are listed in §17.
 | Governance           | Tags, Azure Policy (allowed locations, required `env` tag), $100 budget alerts, delete lock on prod                                                   |
 | Supply chain         | CodeQL, dependency review, secret scanning + push protection, Dependabot, Trivy, SBOM + provenance attestations, SHA-pinned actions, PSRule for Azure |
 | Tests                | Vitest, Supertest, Testcontainers, React Testing Library, MSW, Playwright + mock OIDC server                                                          |
-| Region               | `southeastasia`. Fallback if Postgres is offer-restricted: `eastasia`                                                                                 |
+| Region               | `japaneast` (the student offer allows only five regions; ADR 0017). Fallback: `malaysiawest`                                                          |
 
 ## 3. Environments and promotion
 
@@ -272,7 +272,7 @@ assignments, the budget, app registrations, Entra groups, and anything in
 
 **Environments:**
 
-| Environment | Branch policy | Required reviewers | Variables                                                                                                                             |
+| Environment | Branch policy | Required reviewers | Secrets (IDs) and variables                                                                                                           |
 | ----------- | ------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `shared`    | `main` only   | none               | `AZURE_CLIENT_ID`                                                                                                                     |
 | `dev`       | `main` only   | none               | `AZURE_CLIENT_ID`, `ENTRA_TENANT_ID`, `ENTRA_WEB_CLIENT_ID`, `ENTRA_API_CLIENT_ID`, `DB_ADMIN_GROUP_OBJECT_ID`, `DB_ADMIN_GROUP_NAME` |
@@ -281,7 +281,7 @@ assignments, the budget, app registrations, Entra groups, and anything in
 
 Self-review is allowed, because this is a solo project.
 
-**Repository variables:** `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
+**Repository secrets** (IDs, ADR 0004): `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
 `AZURE_PLAN_CLIENT_ID`.
 
 **Ruleset on `main`:**
@@ -301,7 +301,9 @@ Self-review is allowed, because this is a solo project.
 - Tenant, subscription, client and object IDs, UPNs and email addresses are
   **never committed**. They live only in GitHub variables and git-ignored
   `.env` files.
-- Every Azure job starts by masking them with `::add-mask::`.
+- They're stored as GitHub Actions **secrets**, which GitHub masks in every
+  log line, step headers included (ADR 0004). Variables would print them,
+  and `::add-mask::` on a `${{ }}` expression still leaks the value.
 - What-if and deployment output is redacted before it goes into a job
   summary, because public-repo logs are world-readable.
 
@@ -663,7 +665,8 @@ missing from that list.
   `environments.json`: `env`, `app=atlas`, `owner=Chayud-Ac`,
   `costCenter=personal-learning`.
 - **Azure Policy**, assigned by `bootstrap.sh` to each atlas resource group:
-  - _Allowed locations_: `southeastasia`, `eastasia`. Deny.
+  - _Allowed locations_: `japaneast`, `malaysiawest` (`allowedLocations` in
+    `environments.json`, ADR 0017). Deny.
   - _Require a tag on resources_: `env`. Deny.
 - **Budget** `budget-atlas`: $100 a month on the subscription, emailing at
   50%, 80% and 100% actual, and at 100% forecast. If the Azure for Students
@@ -911,7 +914,7 @@ files document every variable.
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The university disables the student account                              | Everything is code. Re-run `bootstrap.sh` + deploy elsewhere                                                                                                                                                                            |
 | Tenant policy changes and blocks app registration                        | `bootstrap.sh` checks first. Fallback: a personal Entra tenant for the registrations (`ENTRA_TENANT_ID` is separate from `AZURE_TENANT_ID`)                                                                                             |
-| Postgres offer-restricted in `southeastasia`                             | Change `location` in `environments.json` to `eastasia`. The policy already allows it                                                                                                                                                    |
+| Postgres offer-restricted in `japaneast`                                 | Change `location` in `environments.json` to `malaysiawest`. The policy already allows it (ADR 0017)                                                                                                                                     |
 | ACR Tasks blocked on free-credit subscriptions                           | Images are built on GitHub runners                                                                                                                                                                                                      |
 | The tag-required Deny policy blocks a resource type that can't take tags | Found on the first dev deploy; switch that assignment to Audit and record it in the ADR                                                                                                                                                 |
 | Custom-role action lists are incomplete (what-if, cross-RG deploy)       | Verified on dev first, with errors pointing to the missing action                                                                                                                                                                       |
@@ -956,7 +959,7 @@ The target for today (the original goal: coding, testing, OIDC, CI/CD) is
 3. A merge to `main` builds **one** image per app, deploys it automatically
    to dev, and promotes the **same SHA** to UAT and then prod after
    approval. The smoke tests prove the version in each environment.
-4. No GitHub secrets exist, only variables. No credentials exist anywhere,
+4. No credentials exist anywhere. IDs are GitHub secrets only so that logs mask them (ADR 0004),
    and no IDs are committed.
 5. In each environment, a UTCC account can sign in and create, list and
    delete notes. Each change writes an `app.audit_events` row with a trace

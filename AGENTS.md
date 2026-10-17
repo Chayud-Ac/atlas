@@ -144,6 +144,29 @@ npm run test:e2e                                     # HTML report: tests/e2e/pl
 - The database is shared with manual testing: create your own data with unique names, look only for it, and delete it at the end.
 - Query by role and label, as in the component tests.
 
+## Azure (`infra/`)
+
+Everything runs in `japaneast` on an Azure for Students subscription. Its limits are in ADR 0017: five allowed regions, and one Container Apps environment per region. How identities work, with no credentials anywhere, is in ADR 0004.
+
+| Path                             | Holds                                                                                                 |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `infra/config/environments.json` | Every per-environment setting (location, network, replicas, retention). Templates read only this file |
+| `infra/shared.bicep`             | The container registry, shared by all environments                                                    |
+| `infra/platform.bicep`           | One environment's network, logs, workload identities, Container Apps environment and Postgres         |
+| `infra/migrate.bicep`            | The migration job (the API image with the migrate command)                                            |
+| `infra/apps.bicep`               | The API (internal ingress) and web (public) container apps                                            |
+| `infra/modules/`                 | Pieces deployed from those templates: AcrPull on the registry, the Postgres Entra admins              |
+
+- **Changes reach Azure only through `deploy.yml`.** A merge to `main` runs CI, deploys the registry, builds both images once (tagged with the commit SHA), and deploys that SHA to dev. Its smoke tests check the deployed version. To roll back, run `deploy.yml` by hand with an older `sha`.
+- **Pull requests get two infrastructure checks:**
+  - `bicep` builds and lints every template.
+  - `what-if` writes a redacted preview of the Azure changes to the job summary.
+- **Templates find each other's resources by name** (`existing`), so no IDs pass between pipeline steps.
+- **These are run by a human, never the pipeline:**
+  - `scripts/bootstrap.sh shared|dev`: identities, roles, app registrations, groups, policies, budget, GitHub environments
+  - `scripts/add-redirect-uri.sh dev`: once, after an environment's first deploy
+  - `scripts/teardown.sh dev|all`: when you're done, so the credit stops being spent
+
 ## Git and pull requests
 
 - Branch from `main`. Direct pushes to `main` are blocked by a ruleset.
@@ -153,8 +176,8 @@ npm run test:e2e                                     # HTML report: tests/e2e/pl
 ## Security rules (public repo)
 
 - There are no secrets to commit, by design: CI uses OIDC and the apps use managed identities. If you think you need a secret, stop and raise it in the pull request.
-- Never commit Azure tenant, subscription, client or object IDs, UPNs or email addresses. They belong in GitHub environment variables or git-ignored `.env` files.
-- Never print those values in CI logs. Public-repo logs are world-readable.
+- Never commit Azure tenant, subscription, client or object IDs, UPNs or email addresses. They belong in GitHub Actions **secrets** or git-ignored `.env` files. They aren't credentials, but GitHub masks secrets in its logs, and doesn't mask variables (ADR 0004).
+- Never print those values in CI logs. Public-repo logs are world-readable. Redact anything Azure prints, as `scripts/what-if.sh` does.
 
 ## Database rules (from M2)
 
