@@ -17,7 +17,7 @@ COPY apps/web apps/web
 RUN npm run build -w @atlas/web
 
 # ---- Runtime: nginx and the built files ----
-FROM nginxinc/nginx-unprivileged:1.30.6-alpine3.24
+FROM nginxinc/nginx-unprivileged:1.31.6-alpine3.24
 # Only these environment variables are substituted into the templates.
 ENV NGINX_ENVSUBST_FILTER="^(ATLAS_ENV|AUTH_[A-Z_]+|API_UPSTREAM)$"
 COPY --chmod=755 apps/web/nginx/19-atlas-env.envsh /docker-entrypoint.d/
