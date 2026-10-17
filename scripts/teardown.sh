@@ -92,7 +92,7 @@ teardown_all() {
   for env in $(cfg '.environments | keys[]'); do teardown_environment "$env"; done
   delete_group "$(cfg .shared.resourceGroup)"
   delete_group "$(cfg .cicd.resourceGroup)"
-  for name in "Atlas What-If Reader" "Atlas Deployment Runner"; do
+  for name in "Atlas What-If Reader" "Atlas Deployment Runner" "Atlas Environment Joiner"; do
     if [[ -n "$(az role definition list --custom-role-only true --name "$name" --query '[0].name' --output tsv)" ]]; then
       log "Deleting custom role $name"
       az role definition delete --name "$name" --output none

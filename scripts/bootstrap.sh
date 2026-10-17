@@ -389,6 +389,9 @@ bootstrap_shared() {
   ensure_custom_role "Atlas Deployment Runner" \
     "Run deployments in a resource group. Grants nothing the caller can't already do." \
     '["Microsoft.Resources/deployments/*"]'
+  ensure_custom_role "Atlas Environment Joiner" \
+    "Place a stage's apps and jobs in the shared Container Apps environment, and its private Postgres in the shared VNet. Joining only: no changes to shared resources." \
+    '["Microsoft.App/managedEnvironments/join/action", "Microsoft.Network/virtualNetworks/subnets/join/action", "Microsoft.Network/virtualNetworks/join/action"]'
 
   log "Pipeline identities: id-atlas-github-plan, id-atlas-github-shared"
   ensure_identity id-atlas-github-plan
@@ -400,6 +403,8 @@ bootstrap_shared() {
 
   log "Role assignments"
   ensure_role "$plan" "Atlas What-If Reader" "$(rg_scope "$SHARED_RG")"
+  # What-if validation checks join permissions on the shared environment and VNet too.
+  ensure_role "$plan" "Atlas Environment Joiner" "$(rg_scope "$SHARED_RG")"
   ensure_role "$shared" Contributor "$(rg_scope "$SHARED_RG")"
   ensure_role "$shared" AcrPush "$(rg_scope "$SHARED_RG")"
 
@@ -442,6 +447,7 @@ bootstrap_environment() {
   ensure_role "$pipeline" Reader "$(rg_scope "$SHARED_RG")"
   ensure_role "$pipeline" "Atlas Deployment Runner" "$(rg_scope "$SHARED_RG")"
   ensure_role "$pipeline" "Role Based Access Control Administrator" "$(rg_scope "$SHARED_RG")" "$ACR_PULL_ONLY"
+  ensure_role "$pipeline" "Atlas Environment Joiner" "$(rg_scope "$SHARED_RG")"
   ensure_role "$plan" "Atlas What-If Reader" "$(rg_scope "$rg")"
 
   log "Entra ID: atlas-$env-web, atlas-$env-api, atlas-$env-db-admins"
