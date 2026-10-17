@@ -4,7 +4,7 @@
 targetScope = 'resourceGroup'
 
 @description('The environment: a key of environments.json.')
-@allowed(['dev'])
+@allowed(['dev', 'uat', 'prod'])
 param environmentName string
 
 @description('Object id of the atlas-{env}-db-admins Entra group: the people who may administer Postgres.')
@@ -68,7 +68,8 @@ resource vnet 'Microsoft.Network/virtualNetworks@2025-07-01' = {
         }
       }
       {
-        // Reserved in dev, which keeps Postgres public, so dev can move to private networking later.
+        // Postgres's subnet in UAT and prod. Reserved in dev, whose Postgres is public, so dev could
+        // move to private networking later.
         name: 'snet-psql'
         properties: {
           addressPrefix: env.network.psqlSubnet
@@ -157,6 +158,25 @@ resource caeLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
 
 // ---- Postgres (spec §8.4): Entra authentication only, no password exists ----
 
+// UAT and prod (ADR 0008): Postgres sits in snet-psql with no public endpoint. This zone, linked to
+// the VNet, resolves the server's name to its private address for the apps.
+resource postgresDns 'Microsoft.Network/privateDnsZones@2024-06-01' = if (!env.postgres.publicAccess) {
+  name: 'atlas-${environmentName}.private.postgres.database.azure.com'
+  location: 'global'
+  tags: tags
+}
+
+resource postgresDnsLink 'Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01' = if (!env.postgres.publicAccess) {
+  parent: postgresDns
+  name: vnet.name
+  location: 'global'
+  tags: tags
+  properties: {
+    virtualNetwork: { id: vnet.id }
+    registrationEnabled: false
+  }
+}
+
 resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2025-08-01' = {
   name: 'psql-atlas-${environmentName}-${suffix}'
   location: location
@@ -167,13 +187,22 @@ resource postgres 'Microsoft.DBforPostgreSQL/flexibleServers@2025-08-01' = {
     storage: { storageSizeGB: 32, autoGrow: 'Disabled' }
     backup: { backupRetentionDays: env.postgres.backupRetentionDays, geoRedundantBackup: 'Disabled' }
     highAvailability: { mode: 'Disabled' }
-    network: { publicNetworkAccess: env.postgres.publicAccess ? 'Enabled' : 'Disabled' }
+    // Fixed when the server is created: a public server can't become private later.
+    network: env.postgres.publicAccess
+      ? { publicNetworkAccess: 'Enabled' }
+      : {
+          publicNetworkAccess: 'Disabled'
+          delegatedSubnetResourceId: resourceId('Microsoft.Network/virtualNetworks/subnets', vnet.name, 'snet-psql')
+          privateDnsZoneArmResourceId: postgresDns.id
+        }
     authConfig: {
       activeDirectoryAuth: 'Enabled'
       passwordAuth: 'Disabled'
       tenantId: tenant().tenantId
     }
   }
+  // The zone must be linked to the VNet before a private server is created in it.
+  dependsOn: [postgresDnsLink]
 }
 
 resource database 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2025-08-01' = {

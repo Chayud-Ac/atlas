@@ -3,7 +3,7 @@
 targetScope = 'resourceGroup'
 
 @description('The environment: a key of environments.json.')
-@allowed(['dev'])
+@allowed(['dev', 'uat', 'prod'])
 param environmentName string
 
 @description('The image tag to run: the git SHA that was built and pushed.')

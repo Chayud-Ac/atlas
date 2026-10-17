@@ -4,7 +4,7 @@
     "owner": "Chayud-Ac",
     "costCenter": "personal-learning"
   },
-  "allowedLocations": ["japaneast", "malaysiawest"],
+  "allowedLocations": ["japaneast", "malaysiawest", "japanwest"],
   "shared": {
     "location": "japaneast",
     "resourceGroup": "rg-atlas-shared"
@@ -24,7 +24,43 @@
       },
       "replicas": { "min": 0, "max": 1 },
       "postgres": { "publicAccess": true, "backupRetentionDays": 7 },
-      "logRetentionDays": 30
+      "logRetentionDays": 30,
+      "requiresApproval": false,
+      "deleteLock": false,
+      "humanDbAccess": true,
+      "localhostRedirect": true
+    },
+    "uat": {
+      "location": "malaysiawest",
+      "resourceGroup": "rg-atlas-uat",
+      "network": {
+        "addressSpace": "10.20.0.0/16",
+        "caeSubnet": "10.20.0.0/24",
+        "psqlSubnet": "10.20.1.0/27"
+      },
+      "replicas": { "min": 0, "max": 2 },
+      "postgres": { "publicAccess": false, "backupRetentionDays": 7 },
+      "logRetentionDays": 30,
+      "requiresApproval": true,
+      "deleteLock": false,
+      "humanDbAccess": false,
+      "localhostRedirect": false
+    },
+    "prod": {
+      "location": "japanwest",
+      "resourceGroup": "rg-atlas-prod",
+      "network": {
+        "addressSpace": "10.30.0.0/16",
+        "caeSubnet": "10.30.0.0/24",
+        "psqlSubnet": "10.30.1.0/27"
+      },
+      "replicas": { "min": 1, "max": 3 },
+      "postgres": { "publicAccess": false, "backupRetentionDays": 35 },
+      "logRetentionDays": 90,
+      "requiresApproval": true,
+      "deleteLock": true,
+      "humanDbAccess": false,
+      "localhostRedirect": false
     }
   }
 }
