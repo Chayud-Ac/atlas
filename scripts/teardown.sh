@@ -27,7 +27,13 @@ confirm() {
 }
 
 delete_group() {
+  local lock
   if [[ "$(az group exists --name "$1")" == "true" ]]; then
+    # Prod has a CanNotDelete lock (bootstrap.sh); Azure refuses to delete a locked group.
+    for lock in $(az lock list --resource-group "$1" --query '[].id' --output tsv); do
+      log "Removing the delete lock on $1"
+      az lock delete --ids "$lock"
+    done
     log "Deleting resource group $1 (this takes a few minutes)"
     az group delete --name "$1" --yes --output none
   fi
