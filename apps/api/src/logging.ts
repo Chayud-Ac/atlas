@@ -36,6 +36,11 @@ export function genReqId(req: IncomingMessage, res: ServerResponse): string {
   return id;
 }
 
+/**
+ * Logs one line per request: id, method, URL, status and duration. Headers stay out: they're
+ * noise, and Log Analytics bills per GB. The redaction above still covers other logs of headers.
+ */
+
 export function httpLogger(logger: Logger): HttpLogger {
   return pinoHttp({
     logger,
