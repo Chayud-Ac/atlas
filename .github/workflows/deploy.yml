@@ -1,8 +1,10 @@
 name: deploy
 
 # A merge to main runs CI again, deploys the shared registry, builds both images once (tagged with
-# the commit SHA), and deploys that SHA to dev (spec §3.2, §15). A manual run with `sha` set
-# redeploys an image that was already built: that's a rollback.
+# the commit SHA), and deploys that SHA to dev, then UAT, then prod (spec §3.2, §15). UAT and prod
+# wait for approval (their GitHub environments require a reviewer), and a prod deploy ends with a
+# GitHub Release. A manual run with `sha` set redeploys an image that was already built: that's a
+# rollback.
 on:
   push:
     branches: [main]
@@ -141,3 +143,48 @@ jobs:
       environment: dev
       sha: ${{ inputs.sha || github.sha }}
     secrets: inherit
+
+  # The same image as dev, never a new build: what's approved is what was tested.
+  uat:
+    needs: dev
+    uses: ./.github/workflows/deploy-env.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: uat
+      sha: ${{ inputs.sha || github.sha }}
+    secrets: inherit
+
+  prod:
+    needs: uat
+    uses: ./.github/workflows/deploy-env.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: prod
+      sha: ${{ inputs.sha || github.sha }}
+    secrets: inherit
+
+  release:
+    needs: prod
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      # A tag per prod deploy, with notes generated from the PR titles merged since the last one.
+      # A redeploy of the same SHA on the same day keeps the existing release.
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ inputs.sha || github.sha }}
+        run: |
+          tag="prod-$(date -u +%Y%m%d)-${SHA:0:7}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "Release $tag already exists"
+          else
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$SHA" \
+              --title "$tag" --generate-notes
+          fi
