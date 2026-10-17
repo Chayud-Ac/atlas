@@ -146,7 +146,7 @@ npm run test:e2e                                     # HTML report: tests/e2e/pl
 
 ## Azure (`infra/`)
 
-Everything runs in `japaneast` on an Azure for Students subscription. Its limits are in ADR 0017: five allowed regions, and one Container Apps environment per region. How identities work, with no credentials anywhere, is in ADR 0004.
+Three environments on an Azure for Students subscription, one region each because its quota allows one Container Apps environment per region (ADR 0017): **dev** in `japaneast` (with the shared registry), **uat** in `malaysiawest`, **prod** in `japanwest`. Identities and the absence of credentials: ADR 0004. Networking (dev's Postgres is public, UAT and prod are private): ADR 0008.
 
 | Path                             | Holds                                                                                                 |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -157,15 +157,20 @@ Everything runs in `japaneast` on an Azure for Students subscription. Its limits
 | `infra/apps.bicep`               | The API (internal ingress) and web (public) container apps                                            |
 | `infra/modules/`                 | Pieces deployed from those templates: AcrPull on the registry, the Postgres Entra admins              |
 
-- **Changes reach Azure only through `deploy.yml`.** A merge to `main` runs CI, deploys the registry, builds both images once (tagged with the commit SHA), and deploys that SHA to dev. Its smoke tests check the deployed version. To roll back, run `deploy.yml` by hand with an older `sha`.
+- **Changes reach Azure only through `deploy.yml`.**
+  - A merge to `main` runs CI, deploys the registry, builds both images once (tagged with the commit SHA), and deploys that SHA to dev.
+  - Then **the same SHA** goes to UAT, then prod. Each waits for an approval in GitHub, because their environments require a reviewer.
+  - Every environment's deploy ends with smoke tests that check the deployed version.
+  - A prod deploy ends with a GitHub Release, `prod-<date>-<sha>`.
+  - To roll back, run `deploy.yml` by hand with an older `sha`.
 - **Pull requests get two infrastructure checks:**
   - `bicep` builds and lints every template.
   - `what-if` writes a redacted preview of the Azure changes to the job summary.
 - **Templates find each other's resources by name** (`existing`), so no IDs pass between pipeline steps.
 - **These are run by a human, never the pipeline:**
-  - `scripts/bootstrap.sh shared|dev`: identities, roles, app registrations, groups, policies, budget, GitHub environments
-  - `scripts/add-redirect-uri.sh dev`: once, after an environment's first deploy
-  - `scripts/teardown.sh dev|all`: when you're done, so the credit stops being spent
+  - `scripts/bootstrap.sh shared|dev|uat|prod`: identities, roles, app registrations, groups, policies, budget, GitHub environments (with reviewers for UAT and prod), and prod's delete lock. Per-environment behaviour comes from flags in `environments.json` (`requiresApproval`, `deleteLock`, `humanDbAccess`, `localhostRedirect`)
+  - `scripts/add-redirect-uri.sh <env>`: once, after an environment's first deploy
+  - `scripts/teardown.sh <env>|all`: when you're done, so the credit stops being spent. It removes prod's lock first
 
 ## Git and pull requests
 

@@ -17,12 +17,19 @@ Checked before the first deployment (M5):
 
 ## Decision
 
-- **`shared` and `dev` run in `japaneast`:** a mature region with every API, about 70–90 ms from Thailand.
-- **The location is set per environment in `infra/config/environments.json`.**
-- **Atlas's own policy allows `japaneast` and `malaysiawest`,** the second as a fallback (`allowedLocations`).
+- **One region per environment,** because only one Container Apps environment fits per region:
+
+  | Environment         | Region         | Why                                                                      |
+  | ------------------- | -------------- | ------------------------------------------------------------------------ |
+  | `shared` (registry) | `japaneast`    | Next to dev, where most deploys go                                       |
+  | `dev`               | `japaneast`    | A mature region with every API, about 70–90 ms from Thailand             |
+  | `uat`               | `malaysiawest` | The newest region gets the less critical environment first               |
+  | `prod`              | `japanwest`    | A mature region; prod doesn't run in a region that is still missing APIs |
+
+- **The locations live in `infra/config/environments.json`.** Atlas's own policy allows exactly these three regions (`allowedLocations`).
 
 ## Consequences
 
-- **Latency doesn't matter for this demo.** A Thai company would pick a Southeast Asia region.
-- **UAT and prod (M6) can't share `japaneast` with dev,** because only one Container Apps environment fits per region. They would need other allowed regions (`japanwest`, `malaysiawest`), or one shared environment with per-stage apps. That's a cost-driven deviation a company subscription wouldn't have.
-- **A company would also not have an offer-level region policy,** and would choose regions for data residency and latency.
+- **Promotion crosses regions.** UAT and prod pull images from the registry in `japaneast`; the cross-region pull is small and infrequent.
+- **Latency doesn't matter for this demo.** A Thai company would pick Southeast Asia regions.
+- **This is a cost-driven deviation a company subscription wouldn't have.** A company would keep its environments in its chosen regions, often one subscription per environment (ADR 0012), with no offer-level region policy, and choose regions for data residency and latency.
