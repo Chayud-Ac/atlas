@@ -53,25 +53,25 @@ Items excluded on cost or tenant grounds are listed in §17.
 
 ## 2. Decisions at a glance
 
-| Area                 | Decision                                                                                                                                              |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Repo                 | Public `Chayud-Ac/atlas`, npm workspaces monorepo, trunk-based (`main` only)                                                                          |
-| Language / runtime   | TypeScript (strict), Node 24 LTS                                                                                                                      |
-| Web                  | Vite + React, Fluent UI v9, TanStack Query, MSAL behind an app-owned `Auth`, runtime `/config.json`, nginx (unprivileged)                             |
-| API                  | Express 5, zod, pino, OpenTelemetry, Drizzle ORM                                                                                                      |
-| Database             | PostgreSQL 17 Flexible Server B1ms per environment, Entra-only auth, schema `app`                                                                     |
-| Hosting              | Azure Container Apps, VNet-integrated (web external, API internal), migrations as a Container Apps Job                                                |
-| Environments         | `dev` → `uat` → `prod`, one resource group each, plus `shared` (registry) and `cicd` (pipeline identities)                                            |
-| Promotion            | Build once (tag = git SHA), deploy the same image to each environment. UAT and prod need approval                                                     |
-| Infra as code        | Bicep, with all per-environment differences in one `infra/config/environments.json`                                                                   |
-| Pipeline → Azure     | User-assigned managed identities with federated credentials (OIDC), one per environment plus `shared` and `plan`                                      |
-| Users → app          | Entra ID, app registrations `atlas-{env}-web` / `atlas-{env}-api`, single-tenant                                                                      |
-| App → Azure services | Per-app user-assigned managed identities (ACR pull, Postgres)                                                                                         |
-| Observability        | Application Insights (workspace-based) + Log Analytics per environment. Alerts and availability tests in prod                                         |
-| Governance           | Tags, Azure Policy (allowed locations, required `env` tag), $100 budget alerts, delete lock on prod                                                   |
-| Supply chain         | CodeQL, dependency review, secret scanning + push protection, Dependabot, Trivy, SBOM + provenance attestations, SHA-pinned actions, PSRule for Azure |
-| Tests                | Vitest, Supertest, Testcontainers, React Testing Library, MSW, Playwright + mock OIDC server                                                          |
-| Region               | `japaneast` (the student offer allows only five regions; ADR 0017). Fallback: `malaysiawest`                                                          |
+| Area                 | Decision                                                                                                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repo                 | Public `Chayud-Ac/atlas`, npm workspaces monorepo, trunk-based (`main` only)                                                                                                |
+| Language / runtime   | TypeScript (strict), Node 24 LTS                                                                                                                                            |
+| Web                  | Vite + React, Fluent UI v9, TanStack Query, MSAL behind an app-owned `Auth`, runtime `/config.json`, nginx (unprivileged)                                                   |
+| API                  | Express 5, zod, pino, OpenTelemetry, Drizzle ORM                                                                                                                            |
+| Database             | PostgreSQL 17 Flexible Server B1ms per environment, Entra-only auth, schema `app`                                                                                           |
+| Hosting              | Azure Container Apps, VNet-integrated (web external, API internal), migrations as a Container Apps Job                                                                      |
+| Environments         | `dev` → `uat` → `prod`, one resource group each, plus `shared` (registry) and `cicd` (pipeline identities)                                                                  |
+| Promotion            | Build once (tag = git SHA), deploy the same image to each environment. UAT and prod need approval                                                                           |
+| Infra as code        | Bicep, with all per-environment differences in one `infra/config/environments.json`                                                                                         |
+| Pipeline → Azure     | User-assigned managed identities with federated credentials (OIDC), one per environment plus `shared` and `plan`                                                            |
+| Users → app          | Entra ID, app registrations `atlas-{env}-web` / `atlas-{env}-api`, single-tenant                                                                                            |
+| App → Azure services | Per-app user-assigned managed identities (ACR pull, Postgres)                                                                                                               |
+| Observability        | Application Insights (workspace-based) + Log Analytics per environment. Alerts and availability tests in prod                                                               |
+| Governance           | Tags, Azure Policy (allowed locations, required `env` tag), $100 budget alerts, delete lock on prod                                                                         |
+| Supply chain         | CodeQL, dependency review, secret scanning + push protection, Dependabot, Trivy, SBOM + provenance attestations, SHA-pinned actions, PSRule for Azure                       |
+| Tests                | Vitest, Supertest, Testcontainers, React Testing Library, MSW, Playwright + mock OIDC server                                                                                |
+| Region               | `japaneast` for everything, with one Container Apps environment shared by all stages (the student offer allows five regions and one environment per subscription; ADR 0017) |
 
 ## 3. Environments and promotion
 
@@ -83,6 +83,7 @@ anywhere else.
 
 | Setting                            | dev                                                                        | uat                                             | prod                                            |
 | ---------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------- |
+| Region                             | `japaneast` (one shared Container Apps environment and VNet, ADR 0017)     | `japaneast`                                     | `japaneast`                                     |
 | Deploy gate                        | automatic after build                                                      | required reviewer                               | required reviewer                               |
 | Container Apps replicas (web, api) | min 0 / max 1                                                              | min 0 / max 2                                   | **min 1** / max 3                               |
 | Replica size                       | 0.25 vCPU / 0.5 GiB                                                        | same                                            | same                                            |
@@ -91,7 +92,7 @@ anywhere else.
 | Postgres backup retention          | 7 days                                                                     | 7 days                                          | 35 days                                         |
 | Log Analytics retention            | 30 days                                                                    | 30 days                                         | 90 days                                         |
 | Alerts + availability tests        | no                                                                         | no                                              | yes                                             |
-| Resource group delete lock         | no                                                                         | no                                              | `CanNotDelete`                                  |
+| Delete lock                        | no                                                                         | no                                              | `CanNotDelete` on the Postgres server           |
 | VNet address space                 | `10.10.0.0/16`                                                             | `10.20.0.0/16`                                  | `10.30.0.0/16`                                  |
 
 Address spaces don't overlap, so the VNets can later be peered into a hub
@@ -134,6 +135,12 @@ deploy-env.yml (ONE job, so ONE approval per environment):
 ## 4. Architecture
 
 ### 4.1 Per environment
+
+> **As built (M6, ADR 0017):** the subscription allows one Container Apps
+> environment, so `cae-atlas`, `vnet-atlas-shared` and `log-atlas-shared` live
+> in `rg-atlas-shared` and serve every stage. Each `rg-atlas-{env}` keeps its
+> identities, Postgres, apps and migration job; UAT and prod Postgres use
+> private subnets of the shared VNet (ADR 0008).
 
 ```
                     ┌──────────────── vnet-atlas-{env} ──────────────────────────────────┐
@@ -671,7 +678,7 @@ missing from that list.
 - **Budget** `budget-atlas`: $100 a month on the subscription, emailing at
   50%, 80% and 100% actual, and at 100% forecast. If the Azure for Students
   offer doesn't support budgets, `bootstrap.sh` warns and continues.
-- **Locks:** `CanNotDelete` on `rg-atlas-prod`, set by `bootstrap.sh prod`
+- **Locks:** `CanNotDelete` on the prod Postgres server (not the whole group: see §18), set by `bootstrap.sh prod`
   and removed by `teardown.sh`.
 - **Teardown:** `teardown.sh all` removes the locks, deletes every
   `rg-atlas-*`, the app registrations, the groups, the custom roles, the
@@ -923,7 +930,7 @@ files document every variable.
 | Public-repo logs leak identifiers                                        | `::add-mask::`, redacted summaries, no `set -x` in Azure steps                                                                                                                                                                          |
 | Credit runs out, the subscription is disabled                            | Budget alerts. `teardown.sh all` at month end                                                                                                                                                                                           |
 | Scale-to-zero cold starts make smoke tests flaky                         | Smoke tests retry with backoff for up to ~2 minutes                                                                                                                                                                                     |
-| The prod delete lock blocks a deployment step                            | The lock only covers resource-group deletion. Child resources aren't deleted by incremental deployments                                                                                                                                 |
+| The prod delete lock blocks a deployment step                            | It did (M6): a group-wide `CanNotDelete` lock blocked Postgres's own changes to its private DNS zone. The lock now sits on the prod Postgres server, which still stops the group from being deleted                                     |
 
 ## 19. Prerequisites
 

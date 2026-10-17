@@ -1,28 +1,44 @@
-# 0017. Region `japaneast`, and the student subscription's limits
+# 0017. One region and one shared Container Apps environment: the student subscription's limits
 
 - **Status:** Accepted
 - **Date:** 2026-10-17
 
 ## Context
 
-Checked before the first deployment (M5):
+These were checked before the first deployment (M5) and during M6:
 
-- **The Azure for Students offer assigns an "Allowed resource deployment regions" policy:** `malaysiawest`, `japaneast`, `japanwest`, `indonesiacentral` and `indiasouthcentral`. The spec's `southeastasia`, and its fallback `eastasia`, would be denied.
-- **Service availability:**
-  - `indiasouthcentral` has no Container Apps.
-  - The other four offer everything Atlas uses: Container Apps, Postgres Flexible Server, ACR and Log Analytics.
-  - Postgres 17 on B1ms is unrestricted for this subscription in `japaneast` and `malaysiawest`.
-- **`malaysiawest`,** the nearest region to Thailand (about 30 ms), is under a year old. It already lacks one Azure API (Postgres usages).
-- **Quota: one Container Apps environment per region** (`ManagedEnvironmentCount` = 1).
+- **Regions.** The Azure for Students offer assigns an "Allowed resource deployment regions" policy: `malaysiawest`, `japaneast`, `japanwest`, `indonesiacentral` and `indiasouthcentral`. The spec's `southeastasia`, and its fallback `eastasia`, would be denied.
+  - `indiasouthcentral` has no Container Apps. The other four offer everything Atlas uses.
+  - `malaysiawest`, the nearest to Thailand, is under a year old and already lacks one Azure API (Postgres usages).
+- **One Container Apps environment per subscription.**
+  - The per-region usage API reports a limit of 1 per region.
+  - The real limit is stricter. In M6, creating a second environment in another region failed with `MaxNumberOfGlobalEnvironmentsInSubExceeded`: "The subscription cannot have more than 1 Container App Environments".
+  - Student subscriptions can't request quota increases.
 
 ## Decision
 
-- **`shared` and `dev` run in `japaneast`:** a mature region with every API, about 70–90 ms from Thailand.
-- **The location is set per environment in `infra/config/environments.json`.**
-- **Atlas's own policy allows `japaneast` and `malaysiawest`,** the second as a fallback (`allowedLocations`).
+- **Everything runs in `japaneast`,** a mature region with every API, about 70–90 ms from Thailand. `malaysiawest` stays in Atlas's allowed-locations policy as a fallback.
+- **The one Container Apps environment, `cae-atlas`, is shared by every stage and lives in `rg-atlas-shared`,** with its VNet and log workspace.
+  - Each stage runs its own apps and migration job in it: `ca-atlas-{web,api}-{env}`, `caj-atlas-migrate-{env}`.
+  - It isn't in a stage's resource group, so tearing down dev can't take UAT and prod with it.
+- **Stages stay separate in everything except compute and network.** Each has its own:
+  - resource group
+  - workload identities
+  - Postgres server (UAT and prod in private subnets of the shared VNet, ADR 0008)
+  - app registrations
+  - GitHub environment, with an approval gate for UAT and prod
+  - smoke tests
+- **The stage pipelines get one extra custom role on `rg-atlas-shared`, "Atlas Environment Joiner".** It allows exactly three actions:
+  - `Microsoft.App/managedEnvironments/join/action`
+  - `Microsoft.Network/virtualNetworks/subnets/join/action`
+  - `Microsoft.Network/virtualNetworks/join/action`
+
+  So a stage can place its apps, its private Postgres and its DNS zone link in the shared environment and network, but can't change them.
 
 ## Consequences
 
-- **Latency doesn't matter for this demo.** A Thai company would pick a Southeast Asia region.
-- **UAT and prod (M6) can't share `japaneast` with dev,** because only one Container Apps environment fits per region. They would need other allowed regions (`japanwest`, `malaysiawest`), or one shared environment with per-stage apps. That's a cost-driven deviation a company subscription wouldn't have.
-- **A company would also not have an offer-level region policy,** and would choose regions for data residency and latency.
+- **Isolation between stages is by identity, not by network.** A UAT app could reach prod's Postgres over the network, but its identity has no role there, so it can't sign in. A company would give prod its own environment, and usually its own subscription (ADR 0012).
+- **A change to the shared environment affects every stage at once.** It's deployed by `shared.bicep`, before any stage.
+- **App logs from all stages land in one workspace,** `log-atlas-shared`, with one retention period. Per-stage telemetry (Application Insights) comes with M7.
+- **Moving to the shared environment meant recreating dev's environment.** Dev was down for about 30 minutes in M6.
+- **Latency doesn't matter for this demo.** A Thai company would pick a Southeast Asia region, and a company subscription wouldn't have either limit.

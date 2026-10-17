@@ -217,17 +217,18 @@ ensure_role() {
 
 # Usage: ensure_custom_role <name> <description> <actions as a JSON array>
 ensure_custom_role() {
-  local definition id
-  definition="$(jq -n --arg name "$1" --arg description "$2" --argjson actions "$3" \
-    --arg scope "/subscriptions/$SUBSCRIPTION_ID" \
-    '{Name: $name, IsCustom: true, Description: $description, Actions: $actions,
-      NotActions: [], AssignableScopes: [$scope]}')"
-  id="$(az role definition list --custom-role-only true --name "$1" --query '[0].name' --output tsv)"
-  if [[ -n "$id" ]]; then
-    az role definition update --role-definition "$(jq --arg id "$id" '. + {Id: $id}' <<<"$definition")" \
-      --output none
+  local existing
+  existing="$(az role definition list --custom-role-only true --name "$1" --query '[0]' --output json)"
+  if [[ -n "$existing" && "$existing" != "null" ]]; then
+    # Updates take the role in the shape `list` returns, with its actions changed.
+    az role definition update --output none --role-definition "$(jq --arg description "$2" \
+      --argjson actions "$3" '.description = $description | .permissions[0].actions = $actions' \
+      <<<"$existing")"
   else
-    az role definition create --role-definition "$definition" --output none
+    az role definition create --output none --role-definition "$(jq -n --arg name "$1" \
+      --arg description "$2" --argjson actions "$3" --arg scope "/subscriptions/$SUBSCRIPTION_ID" \
+      '{Name: $name, IsCustom: true, Description: $description, Actions: $actions,
+        NotActions: [], AssignableScopes: [$scope]}')"
   fi
 }
 
@@ -281,12 +282,13 @@ graph_patch_app() {
     --headers Content-Type=application/json --body "$2" --output none
 }
 
-# A SPA (PKCE, no secret). Keeps redirect URIs added by add-redirect-uri.sh; adds the Vite dev server.
+# Usage: configure_web_app <web app id> <localhost redirect: true|false>. A SPA (PKCE, no secret).
+# Keeps redirect URIs added by add-redirect-uri.sh; dev also accepts the Vite dev server.
 configure_web_app() {
   local object_id uris
   object_id="$(az ad app show --id "$1" --query id --output tsv)"
   uris="$(az ad app show --id "$1" --query spa.redirectUris --output json |
-    jq -c '(. // []) + ["http://localhost:5173"] | unique')"
+    jq -c --argjson local "$2" '(. // []) + (if $local then ["http://localhost:5173"] else [] end) | unique')"
   graph_patch_app "$object_id" "$(jq -n --argjson uris "$uris" '{spa: {redirectUris: $uris}}')"
 }
 
@@ -311,7 +313,9 @@ configure_api_app() {
     '{api: {preAuthorizedApplications: [{appId: $web, delegatedPermissionIds: [$scope]}]}}')"
 }
 
-# Usage: ensure_db_admin_group <name>. Prints its object id; the signed-in user is a member (dev).
+# Usage: ensure_db_admin_group <name> <add the signed-in user: true|false>. Prints its object id.
+# Only dev adds you; in UAT and prod the group stays empty, so no human has database access by
+# default (spec §11.4).
 ensure_db_admin_group() {
   local id me
   id="$(az ad group list --filter "displayName eq '$1'" --query '[0].id' --output tsv)"
@@ -319,18 +323,27 @@ ensure_db_admin_group() {
     id="$(az ad group create --display-name "$1" --mail-nickname "$1" \
       --description "Postgres Entra admins for Atlas ($1)" --query id --output tsv)"
   fi
-  me="$(az ad signed-in-user show --query id --output tsv)"
-  if [[ "$(az ad group member check --group "$id" --member-id "$me" --query value --output tsv)" != "true" ]]; then
-    retry az ad group member add --group "$id" --member-id "$me" --output none
+  if [[ "$2" == "true" ]]; then
+    me="$(az ad signed-in-user show --query id --output tsv)"
+    if [[ "$(az ad group member check --group "$id" --member-id "$me" --query value --output tsv)" != "true" ]]; then
+      retry az ad group member add --group "$id" --member-id "$me" --output none
+    fi
   fi
   printf '%s' "$id"
 }
 
-# Usage: ensure_github_environment <name>. Deployable from main only.
+# Usage: ensure_github_environment <name> [require approval: true|false]. Deployable from main only.
+# With approval, a deployment waits until the repo owner approves it (self-review is allowed: this
+# is a solo project, ADR 0011).
 ensure_github_environment() {
-  gh api --method PUT "repos/$REPO/environments/$1" --silent --input - <<'JSON'
-{"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true}}
-JSON
+  local reviewers='[]'
+  if [[ "${2:-false}" == "true" ]]; then
+    reviewers="$(gh api user --jq '[{type: "User", id: .id}]')"
+  fi
+  jq -n --argjson reviewers "$reviewers" '{
+    deployment_branch_policy: {protected_branches: false, custom_branch_policies: true},
+    reviewers: $reviewers, prevent_self_review: false}' |
+    gh api --method PUT "repos/$REPO/environments/$1" --silent --input -
   if ! gh api "repos/$REPO/environments/$1/deployment-branch-policies" \
     --jq '.branch_policies[].name' | grep -qx main; then
     gh api --method POST "repos/$REPO/environments/$1/deployment-branch-policies" \
@@ -376,6 +389,9 @@ bootstrap_shared() {
   ensure_custom_role "Atlas Deployment Runner" \
     "Run deployments in a resource group. Grants nothing the caller can't already do." \
     '["Microsoft.Resources/deployments/*"]'
+  ensure_custom_role "Atlas Environment Joiner" \
+    "Place a stage's apps and jobs in the shared Container Apps environment, and its private Postgres in the shared VNet. Joining only: no changes to shared resources." \
+    '["Microsoft.App/managedEnvironments/join/action", "Microsoft.Network/virtualNetworks/subnets/join/action", "Microsoft.Network/virtualNetworks/join/action"]'
 
   log "Pipeline identities: id-atlas-github-plan, id-atlas-github-shared"
   ensure_identity id-atlas-github-plan
@@ -387,6 +403,8 @@ bootstrap_shared() {
 
   log "Role assignments"
   ensure_role "$plan" "Atlas What-If Reader" "$(rg_scope "$SHARED_RG")"
+  # What-if validation checks join permissions on the shared environment and VNet too.
+  ensure_role "$plan" "Atlas Environment Joiner" "$(rg_scope "$SHARED_RG")"
   ensure_role "$shared" Contributor "$(rg_scope "$SHARED_RG")"
   ensure_role "$shared" AcrPush "$(rg_scope "$SHARED_RG")"
 
@@ -409,7 +427,7 @@ bootstrap_shared() {
 
 # Usage: bootstrap_environment <name>, a key of environments.json.
 bootstrap_environment() {
-  local env="$1" rg pipeline plan web api group_name group
+  local env="$1" rg pipeline plan web api group_name group server
   require_azure
   require_repo_admin
   rg="$(cfg ".environments[\"$env\"].resourceGroup // empty")"
@@ -429,21 +447,38 @@ bootstrap_environment() {
   ensure_role "$pipeline" Reader "$(rg_scope "$SHARED_RG")"
   ensure_role "$pipeline" "Atlas Deployment Runner" "$(rg_scope "$SHARED_RG")"
   ensure_role "$pipeline" "Role Based Access Control Administrator" "$(rg_scope "$SHARED_RG")" "$ACR_PULL_ONLY"
+  ensure_role "$pipeline" "Atlas Environment Joiner" "$(rg_scope "$SHARED_RG")"
   ensure_role "$plan" "Atlas What-If Reader" "$(rg_scope "$rg")"
 
   log "Entra ID: atlas-$env-web, atlas-$env-api, atlas-$env-db-admins"
   web="$(ensure_app "atlas-$env-web")"
   api="$(ensure_app "atlas-$env-api")"
-  configure_web_app "$web"
+  configure_web_app "$web" "$(cfg ".environments[\"$env\"].localhostRedirect")"
   configure_api_app "$api" "$web"
   group_name="atlas-$env-db-admins"
-  group="$(ensure_db_admin_group "$group_name")"
+  group="$(ensure_db_admin_group "$group_name" "$(cfg ".environments[\"$env\"].humanDbAccess")")"
 
   log "Policies on $rg"
   ensure_policies "$rg"
 
+  # Prod: its database can't be deleted by accident (spec §12). The lock sits on the Postgres
+  # server, not the resource group: Postgres manages records in its private DNS zone, which a
+  # group-wide CanNotDelete lock blocks. A locked server still stops the group from being deleted.
+  # teardown.sh removes the lock.
+  if [[ "$(cfg ".environments[\"$env\"].deleteLock")" == "true" ]]; then
+    server="$(az postgres flexible-server list --resource-group "$rg" --query '[0].name' --output tsv)"
+    if [[ -n "$server" ]]; then
+      log "Delete lock on $server"
+      az lock create --name atlas-no-delete --lock-type CanNotDelete --resource-group "$rg" \
+        --resource "$server" --resource-type Microsoft.DBforPostgreSQL/flexibleServers \
+        --notes "Atlas $env: remove with scripts/teardown.sh" --output none
+    else
+      log "No Postgres in $rg yet: re-run bootstrap.sh $env after the first deploy to lock it"
+    fi
+  fi
+
   log "GitHub: the '$env' environment"
-  ensure_github_environment "$env"
+  ensure_github_environment "$env" "$(cfg ".environments[\"$env\"].requiresApproval")"
   set_secret AZURE_CLIENT_ID "$(identity_field "id-atlas-github-$env" clientId)" "$env"
   set_secret ENTRA_TENANT_ID "$TENANT_ID" "$env"
   set_secret ENTRA_WEB_CLIENT_ID "$web" "$env"

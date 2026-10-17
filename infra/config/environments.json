@@ -7,7 +7,12 @@
   "allowedLocations": ["japaneast", "malaysiawest"],
   "shared": {
     "location": "japaneast",
-    "resourceGroup": "rg-atlas-shared"
+    "resourceGroup": "rg-atlas-shared",
+    "network": {
+      "addressSpace": "10.0.0.0/16",
+      "caeSubnet": "10.0.0.0/24"
+    },
+    "logRetentionDays": 30
   },
   "cicd": {
     "location": "japaneast",
@@ -17,14 +22,32 @@
     "dev": {
       "location": "japaneast",
       "resourceGroup": "rg-atlas-dev",
-      "network": {
-        "addressSpace": "10.10.0.0/16",
-        "caeSubnet": "10.10.0.0/24",
-        "psqlSubnet": "10.10.1.0/27"
-      },
       "replicas": { "min": 0, "max": 1 },
       "postgres": { "publicAccess": true, "backupRetentionDays": 7 },
-      "logRetentionDays": 30
+      "requiresApproval": false,
+      "deleteLock": false,
+      "humanDbAccess": true,
+      "localhostRedirect": true
+    },
+    "uat": {
+      "location": "japaneast",
+      "resourceGroup": "rg-atlas-uat",
+      "replicas": { "min": 0, "max": 2 },
+      "postgres": { "publicAccess": false, "subnet": "10.0.1.0/27", "backupRetentionDays": 7 },
+      "requiresApproval": true,
+      "deleteLock": false,
+      "humanDbAccess": false,
+      "localhostRedirect": false
+    },
+    "prod": {
+      "location": "japaneast",
+      "resourceGroup": "rg-atlas-prod",
+      "replicas": { "min": 1, "max": 3 },
+      "postgres": { "publicAccess": false, "subnet": "10.0.1.32/27", "backupRetentionDays": 35 },
+      "requiresApproval": true,
+      "deleteLock": true,
+      "humanDbAccess": false,
+      "localhostRedirect": false
     }
   }
 }

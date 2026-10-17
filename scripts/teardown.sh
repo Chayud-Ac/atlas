@@ -27,7 +27,13 @@ confirm() {
 }
 
 delete_group() {
+  local lock
   if [[ "$(az group exists --name "$1")" == "true" ]]; then
+    # Prod has a CanNotDelete lock (bootstrap.sh); Azure refuses to delete a locked group.
+    for lock in $(az lock list --resource-group "$1" --query '[].id' --output tsv); do
+      log "Removing the delete lock on $1"
+      az lock delete --ids "$lock"
+    done
     log "Deleting resource group $1 (this takes a few minutes)"
     az group delete --name "$1" --yes --output none
   fi
@@ -86,7 +92,7 @@ teardown_all() {
   for env in $(cfg '.environments | keys[]'); do teardown_environment "$env"; done
   delete_group "$(cfg .shared.resourceGroup)"
   delete_group "$(cfg .cicd.resourceGroup)"
-  for name in "Atlas What-If Reader" "Atlas Deployment Runner"; do
+  for name in "Atlas What-If Reader" "Atlas Deployment Runner" "Atlas Environment Joiner"; do
     if [[ -n "$(az role definition list --custom-role-only true --name "$name" --query '[0].name' --output tsv)" ]]; then
       log "Deleting custom role $name"
       az role definition delete --name "$name" --output none
