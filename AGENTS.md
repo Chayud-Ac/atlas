@@ -27,22 +27,24 @@ Current workspaces: `packages/shared`, `apps/api`, `apps/web`.
 
 Run these from the repo root.
 
-| Command                             | Does                                                                     |
-| ----------------------------------- | ------------------------------------------------------------------------ |
-| `npm ci`                            | Install exactly what the lockfile says                                   |
-| `npm run check`                     | **Definition of done**: lint + typecheck + build + all tests             |
-| `npm run lint`                      | ESLint, Prettier check, actionlint, shellcheck                           |
-| `npm run format`                    | Prettier write                                                           |
-| `npm run typecheck`                 | `tsc --build` across all workspaces                                      |
-| `npm run build`                     | Build every workspace (`vite build` for the web app)                     |
-| `npm test`                          | Unit tests in every workspace (no Docker)                                |
-| `npm run test:integration`          | Integration tests (need Docker)                                          |
-| `npm test -w @atlas/shared`         | Tests for one workspace                                                  |
-| `docker compose up -d --wait`       | Start local Postgres and the mock OIDC issuer                            |
-| `npm run db:migrate -w @atlas/api`  | Apply migrations and grants locally (needs `apps/api/.env.migrate`)      |
-| `npm run dev -w @atlas/api`         | Run the API on :3000 with reload and pretty logs (needs `apps/api/.env`) |
-| `npm run db:generate -w @atlas/api` | Generate a migration after editing `src/db/schema.ts`                    |
-| `npm run dev -w @atlas/web`         | Run the web app on :5173, proxying `/api` to :3000                       |
+| Command                                              | Does                                                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------ |
+| `npm ci`                                             | Install exactly what the lockfile says                                   |
+| `npm run check`                                      | **Definition of done**: lint + typecheck + build + all tests             |
+| `npm run lint`                                       | ESLint, Prettier check, actionlint, shellcheck                           |
+| `npm run format`                                     | Prettier write                                                           |
+| `npm run typecheck`                                  | `tsc --build` across all workspaces                                      |
+| `npm run build`                                      | Build every workspace (`vite build` for the web app)                     |
+| `npm test`                                           | Unit tests in every workspace (no Docker)                                |
+| `npm run test:integration`                           | Integration tests (need Docker)                                          |
+| `npm test -w @atlas/shared`                          | Tests for one workspace                                                  |
+| `docker compose up -d --wait`                        | Start local Postgres and the mock OIDC issuer                            |
+| `npm run db:migrate -w @atlas/api`                   | Apply migrations and grants locally (needs `apps/api/.env.migrate`)      |
+| `npm run dev -w @atlas/api`                          | Run the API on :3000 with reload and pretty logs (needs `apps/api/.env`) |
+| `npm run db:generate -w @atlas/api`                  | Generate a migration after editing `src/db/schema.ts`                    |
+| `npm run dev -w @atlas/web`                          | Run the web app on :5173, proxying `/api` to :3000                       |
+| `docker compose --profile full up -d --build --wait` | Build the production images and run migrate, api and web on :8080        |
+| `docker compose --profile full down`                 | Stop everything; the database volume stays (`-v` deletes it)             |
 
 `npm run dev -w @atlas/web` needs `apps/web/public/config.json`: copy it from `apps/web/config.example.json` (mock sign-in, ADR 0007). It's git-ignored, so real client IDs never get committed.
 
@@ -90,6 +92,7 @@ API layout (`apps/api/`):
 | --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `src/app.ts`                      | Middleware order, rate limits, router mounting                                                                  |
 | `src/server.ts`, `src/migrate.ts` | The two entrypoints (API, migration job)                                                                        |
+| `Dockerfile`                      | Production image: runs the API; the migration job runs it with `node apps/api/dist/migrate.js`                  |
 | `src/config.ts`                   | Environment validation, including the issuer guard                                                              |
 | `src/logging.ts`                  | pino logger with redaction, request ids, `httpLogger` (one lean line per request)                               |
 | `src/errors.ts`                   | `NotFoundError`, `HttpError`, `parseOrThrow`, problem+json error handler                                        |
@@ -111,6 +114,8 @@ Web layout (`apps/web/src/`, Bulletproof React style, ADR 0015):
 | `lib/`                | Infrastructure without UI: `config.ts` (`/config.json`), `api-client.ts` (fetch wrapper), `auth/`         |
 | `lib/auth/`           | `auth-context.ts` (`Auth` interface, `useAuth`), `msal-auth.ts` (Entra ID), `mock-auth.ts` (local/ci)     |
 | `testing/`            | `setup.ts` (MSW lifecycle), `mock-api.ts` (fake API), `test-utils.tsx` (`fakeAuth`, `renderApp`)          |
+
+The web image is `apps/web/Dockerfile` plus `apps/web/nginx/`: nginx serves the build, proxies `/api/`, sets the security headers and CSP, and renders `/config.json` from environment variables at startup (ADR 0016).
 
 Imports flow one way: `app` → `features` → `components` / `lib`. A feature never imports another feature; shared code moves to `components/` or `lib/`.
 

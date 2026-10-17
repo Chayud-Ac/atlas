@@ -575,8 +575,8 @@ missing from that list.
   }
   ```
 
-  - In the container, a `/docker-entrypoint.d/` script renders it from
-    environment variables at startup (§15).
+  - In the container, nginx renders it from environment variables at
+    startup (ADR 0016).
   - In Vite dev, it's a git-ignored `public/config.json`, copied from
     `apps/web/config.example.json` (mock sign-in).
   - Every value in it is a public identifier.

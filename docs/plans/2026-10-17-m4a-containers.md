@@ -816,6 +816,11 @@ Expected: the second command lists `build-images` with the other five.
 
 ---
 
-## Execution notes
+## Execution notes (2026-10-17)
 
-To be added after merge: what happened when the plan met reality.
+What happened when the plan met reality. The prototype had already run every step, so the differences are small:
+
+1. **From Task 1 on, Claude wrote the files and the user reviewed each one** in the approval prompt, instead of typing them. Typing the first PR (#5) by hand had been slow for long files.
+2. **Dependabot's Docker entry ignores major updates of `node`.** Without that, it would propose `node:25`, which isn't an LTS release. The repo targets Node 24 (`engines`, `.nvmrc`), the same reason `@types/node` majors are already ignored. nginx needs no rule: its mainline releases are production-ready.
+3. **Task 4's browser check was automated** with `playwright-core` driving the installed Chrome (headless), in a scratch folder outside the repo. It signed in, added a note through `nginx → api → postgres`, and recorded CSP reports. The only report was zod's `eval` probe (deviation 6). The note it added stays in the local database, which the dev servers share.
+4. **`docker compose --profile full up` reused the running `postgres` and `mock-oidc` containers.** They kept running ("Up 3 hours"), and the dev API on :3000 kept answering, as the conventions above expected.
