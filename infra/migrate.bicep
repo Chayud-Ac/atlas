@@ -12,8 +12,10 @@ param imageTag string
 var config = loadJsonContent('config/environments.json')
 var env = config.environments[environmentName]
 
+// The subscription's one Container Apps environment, shared by every stage (ADR 0017).
 resource cae 'Microsoft.App/managedEnvironments@2026-07-01' existing = {
-  name: 'cae-atlas-${environmentName}'
+  name: 'cae-atlas'
+  scope: resourceGroup(config.shared.resourceGroup)
 }
 
 resource migratorIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' existing = {
