@@ -1,7 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Writable } from 'node:stream';
+import express from 'express';
+import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { createLogger, genReqId } from './logging.js';
+import { createLogger, genReqId, httpLogger } from './logging.js';
 
 function captureLogs() {
   const lines: string[] = [];
@@ -43,6 +45,29 @@ describe('createLogger', () => {
     const { lines, stream } = captureLogs();
     createLogger('warn', stream).info('hidden');
     expect(lines).toEqual([]);
+  });
+});
+
+describe('httpLogger', () => {
+  it('logs one lean line per request, without headers', async () => {
+    const { lines, stream } = captureLogs();
+    const app = express();
+    app.use(httpLogger(createLogger('info', stream)));
+    app.get('/ping', (_req, res) => {
+      res.status(204).end();
+    });
+
+    await request(app)
+      .get('/ping?probe=1')
+      .set('x-request-id', 'req-1')
+      .set('Authorization', 'Bearer secret-token');
+
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain('secret-token');
+    const entry = JSON.parse(lines[0] ?? '') as Record<string, unknown>;
+    expect(entry.req).toEqual({ id: 'req-1', method: 'GET', url: '/ping?probe=1' });
+    expect(entry.res).toEqual({ statusCode: 204 });
+    expect(typeof entry.responseTime).toBe('number');
   });
 });
 
