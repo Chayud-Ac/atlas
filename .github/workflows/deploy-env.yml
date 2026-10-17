@@ -1,0 +1,106 @@
+name: deploy-env
+
+# Deploys one image SHA to one environment (spec §15). One job, so an environment that needs
+# approval asks once: platform → migration job → migrations → apps → smoke tests.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      sha:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: deploy (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.apps.outputs.url }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      SHA: ${{ inputs.sha }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # IDs are environment secrets, so GitHub masks them in this public log (ADR 0004).
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Find the resource group
+        run: |
+          echo "RG=$(jq -r --arg env "$ENVIRONMENT" '.environments[$env].resourceGroup' \
+            infra/config/environments.json)" >> "$GITHUB_ENV"
+
+      - name: Platform (platform.bicep)
+        env:
+          DB_ADMIN_GROUP_OBJECT_ID: ${{ secrets.DB_ADMIN_GROUP_OBJECT_ID }}
+          DB_ADMIN_GROUP_NAME: ${{ vars.DB_ADMIN_GROUP_NAME }}
+        run: |
+          az deployment group create --resource-group "$RG" --name platform \
+            --template-file infra/platform.bicep \
+            --parameters environmentName="$ENVIRONMENT" \
+              dbAdminGroupObjectId="$DB_ADMIN_GROUP_OBJECT_ID" dbAdminGroupName="$DB_ADMIN_GROUP_NAME" \
+            --output none
+
+      - name: Migration job (migrate.bicep)
+        run: |
+          az deployment group create --resource-group "$RG" --name migrate \
+            --template-file infra/migrate.bicep \
+            --parameters environmentName="$ENVIRONMENT" imageTag="$SHA" \
+            --output none
+
+      # Runs before the new API starts, so every migration must be expand-then-contract (ADR 0006).
+      - name: Run the migrations
+        run: |
+          job="caj-atlas-migrate-$ENVIRONMENT"
+          execution="$(az containerapp job start --resource-group "$RG" --name "$job" \
+            --query name --output tsv)"
+          echo "Started $execution"
+          for _ in $(seq 1 60); do
+            status="$(az containerapp job execution show --resource-group "$RG" --name "$job" \
+              --job-execution-name "$execution" --query properties.status --output tsv)"
+            case "$status" in
+              Succeeded)
+                echo "Migrations applied"
+                exit 0
+                ;;
+              Failed | Stopped | Degraded)
+                echo "::error::$execution ended $status. Its logs are in log-atlas-$ENVIRONMENT (ContainerAppConsoleLogs)."
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "::error::$execution didn't finish within 10 minutes"
+          exit 1
+
+      - name: Apps (apps.bicep)
+        id: apps
+        env:
+          ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
+          ENTRA_WEB_CLIENT_ID: ${{ secrets.ENTRA_WEB_CLIENT_ID }}
+          ENTRA_API_CLIENT_ID: ${{ secrets.ENTRA_API_CLIENT_ID }}
+        run: |
+          fqdn="$(az deployment group create --resource-group "$RG" --name apps \
+            --template-file infra/apps.bicep \
+            --parameters environmentName="$ENVIRONMENT" imageTag="$SHA" \
+              entraTenantId="$ENTRA_TENANT_ID" webClientId="$ENTRA_WEB_CLIENT_ID" \
+              apiClientId="$ENTRA_API_CLIENT_ID" \
+            --query properties.outputs.webFqdn.value --output tsv)"
+          echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke tests
+        run: scripts/smoke-test.sh "${{ steps.apps.outputs.url }}" "$ENVIRONMENT" "$SHA"
