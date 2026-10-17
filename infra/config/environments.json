@@ -1,0 +1,30 @@
+{
+  "tags": {
+    "app": "atlas",
+    "owner": "Chayud-Ac",
+    "costCenter": "personal-learning"
+  },
+  "allowedLocations": ["japaneast", "malaysiawest"],
+  "shared": {
+    "location": "japaneast",
+    "resourceGroup": "rg-atlas-shared"
+  },
+  "cicd": {
+    "location": "japaneast",
+    "resourceGroup": "rg-atlas-cicd"
+  },
+  "environments": {
+    "dev": {
+      "location": "japaneast",
+      "resourceGroup": "rg-atlas-dev",
+      "network": {
+        "addressSpace": "10.10.0.0/16",
+        "caeSubnet": "10.10.0.0/24",
+        "psqlSubnet": "10.10.1.0/27"
+      },
+      "replicas": { "min": 0, "max": 1 },
+      "postgres": { "publicAccess": true, "backupRetentionDays": 7 },
+      "logRetentionDays": 30
+    }
+  }
+}
