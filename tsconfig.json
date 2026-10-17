@@ -1,4 +1,9 @@
 {
   "files": [],
-  "references": [{ "path": "packages/shared" }, { "path": "apps/api" }, { "path": "apps/web" }]
+  "references": [
+    { "path": "packages/shared" },
+    { "path": "apps/api" },
+    { "path": "apps/web" },
+    { "path": "tests/e2e" }
+  ]
 }

@@ -1,0 +1,14 @@
+{
+  "name": "@atlas/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Atlas end-to-end tests: Playwright against the compose full stack",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.0"
+  }
+}
