@@ -98,7 +98,9 @@ teardown_all() {
     true
   delete_github_environment shared
   for name in AZURE_TENANT_ID AZURE_SUBSCRIPTION_ID AZURE_PLAN_CLIENT_ID; do
-    gh secret delete "$name" --repo "$REPO" 2>/dev/null && log "Deleted repository secret $name" || true
+    if gh secret delete "$name" --repo "$REPO" 2>/dev/null; then
+      log "Deleted repository secret $name"
+    fi
   done
 }
 

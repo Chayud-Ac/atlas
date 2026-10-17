@@ -188,6 +188,13 @@ identity_field() {
   az identity show --resource-group "$CICD_RG" --name "$1" --query "$2" --output tsv
 }
 
+# The start of the `sub` claim in this repo's GitHub OIDC tokens. Repos created recently use
+# immutable subjects, `repo:<owner>@<owner id>/<repo>@<repo id>`, so a renamed or re-created repo
+# can't inherit the trust; older ones use `repo:<owner>/<repo>`. GitHub reports which.
+subject_prefix() {
+  gh api "repos/$REPO/actions/oidc/customization/sub" --jq ".sub_claim_prefix // \"repo:$REPO\""
+}
+
 # Usage: ensure_federated_credential <identity> <credential name> <subject>
 ensure_federated_credential() {
   az identity federated-credential create --resource-group "$CICD_RG" --identity-name "$1" \
@@ -372,9 +379,9 @@ bootstrap_shared() {
 
   log "Pipeline identities: id-atlas-github-plan, id-atlas-github-shared"
   ensure_identity id-atlas-github-plan
-  ensure_federated_credential id-atlas-github-plan github-pull-request "repo:$REPO:pull_request"
+  ensure_federated_credential id-atlas-github-plan github-pull-request "$(subject_prefix):pull_request"
   ensure_identity id-atlas-github-shared
-  ensure_federated_credential id-atlas-github-shared github-env-shared "repo:$REPO:environment:shared"
+  ensure_federated_credential id-atlas-github-shared github-env-shared "$(subject_prefix):environment:shared"
   plan="$(identity_field id-atlas-github-plan principalId)"
   shared="$(identity_field id-atlas-github-shared principalId)"
 
@@ -413,7 +420,7 @@ bootstrap_environment() {
 
   log "Pipeline identity: id-atlas-github-$env"
   ensure_identity "id-atlas-github-$env"
-  ensure_federated_credential "id-atlas-github-$env" "github-env-$env" "repo:$REPO:environment:$env"
+  ensure_federated_credential "id-atlas-github-$env" "github-env-$env" "$(subject_prefix):environment:$env"
   pipeline="$(identity_field "id-atlas-github-$env" principalId)"
   plan="$(identity_field id-atlas-github-plan principalId)"
 
