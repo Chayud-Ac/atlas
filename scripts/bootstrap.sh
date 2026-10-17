@@ -427,7 +427,7 @@ bootstrap_shared() {
 
 # Usage: bootstrap_environment <name>, a key of environments.json.
 bootstrap_environment() {
-  local env="$1" rg pipeline plan web api group_name group
+  local env="$1" rg pipeline plan web api group_name group server
   require_azure
   require_repo_admin
   rg="$(cfg ".environments[\"$env\"].resourceGroup // empty")"
@@ -461,11 +461,20 @@ bootstrap_environment() {
   log "Policies on $rg"
   ensure_policies "$rg"
 
-  # Prod: the resource group can't be deleted by accident (spec §12). teardown.sh removes the lock.
+  # Prod: its database can't be deleted by accident (spec §12). The lock sits on the Postgres
+  # server, not the resource group: Postgres manages records in its private DNS zone, which a
+  # group-wide CanNotDelete lock blocks. A locked server still stops the group from being deleted.
+  # teardown.sh removes the lock.
   if [[ "$(cfg ".environments[\"$env\"].deleteLock")" == "true" ]]; then
-    log "Delete lock on $rg"
-    az lock create --name atlas-no-delete --lock-type CanNotDelete --resource-group "$rg" \
-      --notes "Atlas $env: remove with scripts/teardown.sh" --output none
+    server="$(az postgres flexible-server list --resource-group "$rg" --query '[0].name' --output tsv)"
+    if [[ -n "$server" ]]; then
+      log "Delete lock on $server"
+      az lock create --name atlas-no-delete --lock-type CanNotDelete --resource-group "$rg" \
+        --resource "$server" --resource-type Microsoft.DBforPostgreSQL/flexibleServers \
+        --notes "Atlas $env: remove with scripts/teardown.sh" --output none
+    else
+      log "No Postgres in $rg yet: re-run bootstrap.sh $env after the first deploy to lock it"
+    fi
   fi
 
   log "GitHub: the '$env' environment"
