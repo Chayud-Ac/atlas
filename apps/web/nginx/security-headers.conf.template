@@ -1,0 +1,11 @@
+# Security headers for what nginx serves itself (the API sets its own). A location that has
+# any add_header loses the server's, so every location includes this file. `always` adds the
+# headers to error responses too.
+#
+# style-src allows inline styles because Fluent UI creates <style> tags at runtime (ADR 0016).
+# frame-src lets MSAL renew tokens in a hidden iframe.
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${AUTH_ORIGIN}; frame-src ${AUTH_ORIGIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+add_header X-Content-Type-Options "nosniff" always;
+add_header Referrer-Policy "no-referrer" always;
+# Browsers ignore this over plain http (locally); in Azure the site is https only.
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;

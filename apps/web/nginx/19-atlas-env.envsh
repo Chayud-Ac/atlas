@@ -1,0 +1,17 @@
+# shellcheck shell=sh
+# Runs at container start. The nginx image *sources* files ending in .envsh (it runs .sh
+# files), so AUTH_ORIGIN exported here reaches 20-envsubst-on-templates.sh, which renders
+# /etc/nginx/templates. The 19- prefix makes this run just before it.
+
+# Stop the container from starting, instead of serving a broken /config.json.
+: "${ATLAS_ENV:?must be set}"
+: "${AUTH_KIND:?must be set}"
+: "${AUTH_AUTHORITY:?must be set}"
+: "${AUTH_CLIENT_ID:?must be set}"
+: "${AUTH_API_SCOPE:?must be set}"
+: "${API_UPSTREAM:?must be set}"
+
+# The browser fetches tokens from the sign-in server, so the CSP must allow its origin:
+# https://login.microsoftonline.com/<tenant> gives https://login.microsoftonline.com
+AUTH_ORIGIN=$(printf '%s' "$AUTH_AUTHORITY" | sed -E 's#^(https?://[^/]+).*#\1#')
+export AUTH_ORIGIN

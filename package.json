@@ -42,7 +42,7 @@
     "check": "npm run lint && npm run typecheck && npm run build && npm test && npm run test:integration",
     "prepare": "husky",
     "lint:gh": "actionlint",
-    "lint:sh": "shellcheck scripts/*.sh"
+    "lint:sh": "shellcheck scripts/*.sh apps/web/nginx/*.envsh"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs,cjs}": [
@@ -50,6 +50,7 @@
       "prettier --write"
     ],
     "*.{json,md,yml,yaml,css,html}": "prettier --write",
-    "scripts/*.sh": "shellcheck"
+    "scripts/*.sh": "shellcheck",
+    "apps/web/nginx/*.envsh": "shellcheck"
   }
 }
