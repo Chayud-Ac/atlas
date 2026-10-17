@@ -1,12 +1,11 @@
 import express, { type Express } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import helmet from 'helmet';
-import { pinoHttp } from 'pino-http';
 import { authenticate, authOf } from './auth/authenticate.js';
 import type { TokenVerifier } from './auth/tokens.js';
 import { errorHandler, HttpError, notFound } from './errors.js';
 import { healthRouter } from './health/health.routes.js';
-import { genReqId, type Logger } from './logging.js';
+import { httpLogger, type Logger } from './logging.js';
 import { notesRouter } from './notes/notes.routes.js';
 import type { NotesService } from './notes/notes.service.js';
 import type { UsersRepository } from './users/users.repository.js';
@@ -32,7 +31,7 @@ const tooManyRequests = new HttpError(429, 'Too many requests. Try again in a mi
 export function createApp(deps: AppDependencies): Express {
   const app = express();
   app.disable('x-powered-by');
-  app.use(pinoHttp({ logger: deps.logger, genReqId }));
+  app.use(httpLogger(deps.logger));
   app.use(helmet());
   app.use(express.json({ limit: '100kb' }));
 

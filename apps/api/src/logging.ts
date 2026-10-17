@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { pino, type DestinationStream, type Logger } from 'pino';
+import {
+  pino,
+  type DestinationStream,
+  type Logger,
+  type SerializedRequest,
+  type SerializedResponse,
+} from 'pino';
+import { pinoHttp, type HttpLogger } from 'pino-http';
 
 export type { Logger } from 'pino';
 
@@ -27,6 +34,22 @@ export function genReqId(req: IncomingMessage, res: ServerResponse): string {
     typeof incoming === 'string' && SAFE_REQUEST_ID.test(incoming) ? incoming : randomUUID();
   res.setHeader('x-request-id', id);
   return id;
+}
+
+/**
+ * Logs one line per request: id, method, URL, status and duration. Headers stay out: they're
+ * noise, and Log Analytics bills per GB. The redaction above still covers other logs of headers.
+ */
+
+export function httpLogger(logger: Logger): HttpLogger {
+  return pinoHttp({
+    logger,
+    genReqId,
+    serializers: {
+      req: (req: SerializedRequest) => ({ id: req.id, method: req.method, url: req.url }),
+      res: (res: SerializedResponse) => ({ statusCode: res.statusCode }),
+    },
+  });
 }
 
 /**
