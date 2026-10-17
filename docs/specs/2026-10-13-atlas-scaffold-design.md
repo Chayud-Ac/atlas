@@ -92,7 +92,7 @@ anywhere else.
 | Postgres backup retention          | 7 days                                                                     | 7 days                                          | 35 days                                         |
 | Log Analytics retention            | 30 days                                                                    | 30 days                                         | 90 days                                         |
 | Alerts + availability tests        | no                                                                         | no                                              | yes                                             |
-| Resource group delete lock         | no                                                                         | no                                              | `CanNotDelete`                                  |
+| Delete lock                        | no                                                                         | no                                              | `CanNotDelete` on the Postgres server           |
 | VNet address space                 | `10.10.0.0/16`                                                             | `10.20.0.0/16`                                  | `10.30.0.0/16`                                  |
 
 Address spaces don't overlap, so the VNets can later be peered into a hub
@@ -678,7 +678,7 @@ missing from that list.
 - **Budget** `budget-atlas`: $100 a month on the subscription, emailing at
   50%, 80% and 100% actual, and at 100% forecast. If the Azure for Students
   offer doesn't support budgets, `bootstrap.sh` warns and continues.
-- **Locks:** `CanNotDelete` on `rg-atlas-prod`, set by `bootstrap.sh prod`
+- **Locks:** `CanNotDelete` on the prod Postgres server (not the whole group: see §18), set by `bootstrap.sh prod`
   and removed by `teardown.sh`.
 - **Teardown:** `teardown.sh all` removes the locks, deletes every
   `rg-atlas-*`, the app registrations, the groups, the custom roles, the
@@ -930,7 +930,7 @@ files document every variable.
 | Public-repo logs leak identifiers                                        | `::add-mask::`, redacted summaries, no `set -x` in Azure steps                                                                                                                                                                          |
 | Credit runs out, the subscription is disabled                            | Budget alerts. `teardown.sh all` at month end                                                                                                                                                                                           |
 | Scale-to-zero cold starts make smoke tests flaky                         | Smoke tests retry with backoff for up to ~2 minutes                                                                                                                                                                                     |
-| The prod delete lock blocks a deployment step                            | The lock only covers resource-group deletion. Child resources aren't deleted by incremental deployments                                                                                                                                 |
+| The prod delete lock blocks a deployment step                            | It did (M6): a group-wide `CanNotDelete` lock blocked Postgres's own changes to its private DNS zone. The lock now sits on the prod Postgres server, which still stops the group from being deleted                                     |
 
 ## 19. Prerequisites
 
