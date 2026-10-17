@@ -53,8 +53,11 @@ export interface MigrationJobOptions {
   migrationsFolder: string;
   /** The runtime role to grant to: `atlas_app` locally, `id-atlas-api-{env}` in Azure. */
   appRole: string;
-  /** Azure only: the runtime identity's object id, used to create its Entra-backed role. */
-  appPrincipalId?: string | undefined;
+  /**
+   * Azure only: create `appRole` bound to the runtime identity (its object id). Azure's pgaadauth
+   * functions exist only in the built-in `postgres` database, so this needs a pool connected there.
+   */
+  entraRole?: { principalId: string; postgresDb: Pool } | undefined;
   logger: Logger;
 }
 
@@ -69,8 +72,9 @@ export async function runMigrationJob(pool: Pool, options: MigrationJobOptions):
         migrationsFolder: options.migrationsFolder,
         migrationsSchema: 'drizzle',
       });
-      if (options.appPrincipalId) {
-        await ensureEntraRole(client, options.appRole, options.appPrincipalId);
+      if (options.entraRole) {
+        const { postgresDb, principalId } = options.entraRole;
+        await ensureEntraRole(postgresDb, options.appRole, principalId);
       }
       await applyGrants(client, options.appRole);
       options.logger.info({ appRole: options.appRole }, 'migrations and grants applied');
@@ -82,15 +86,14 @@ export async function runMigrationJob(pool: Pool, options: MigrationJobOptions):
   }
 }
 
-/** Creates a Postgres role bound to an Entra identity. Exists only on Azure Database for PostgreSQL. */
-async function ensureEntraRole(
-  client: PoolClient,
-  role: string,
-  principalId: string,
-): Promise<void> {
-  const existing = await client.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [role]);
+/**
+ * Creates a Postgres role bound to an Entra identity, with Azure Database for PostgreSQL's own
+ * function. Roles belong to the whole server, so the role is then usable in the `atlas` database.
+ */
+async function ensureEntraRole(postgresDb: Pool, role: string, principalId: string): Promise<void> {
+  const existing = await postgresDb.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [role]);
   if (existing.rowCount === 0) {
-    await client.query(
+    await postgresDb.query(
       "SELECT * FROM pgaadauth_create_principal_with_oid($1, $2, 'service', false, false)",
       [role, principalId],
     );
