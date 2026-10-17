@@ -2,7 +2,7 @@
 
 A scaffold for internal company apps on Azure: React + Express in TypeScript, PostgreSQL, Azure Container Apps, Bicep and GitHub Actions, with **no stored secrets anywhere**.
 
-> **Status:** under construction. Milestone M3 (web app) of M9. See the [design spec](docs/specs/2026-10-13-atlas-scaffold-design.md).
+> **Status:** under construction. Milestone M4 (containers and E2E) of M9. See the [design spec](docs/specs/2026-10-13-atlas-scaffold-design.md).
 
 ## What it demonstrates
 
@@ -10,6 +10,7 @@ A scaffold for internal company apps on Azure: React + Express in TypeScript, Po
 - React 19 web app (Vite, Fluent UI v9, TanStack Query) with Entra ID sign-in through MSAL and one build for every environment (runtime `/config.json`)
 - Express 5 API with Entra-style token validation, RFC 9457 errors and audit events
 - PostgreSQL with Entra-only auth in Azure, a least-privilege runtime role and migrations as a separate job, tested against real Postgres with Testcontainers
+- Non-root container images (nginx for the web app), scanned for vulnerabilities in CI; the whole app runs locally from the same images
 - Every change goes through a pull request, gated by lint, type, test, dependency and CodeQL checks
 - (coming) GitHub Actions → Azure with OIDC, dev → uat → prod promotion of one immutable image
 
@@ -35,6 +36,13 @@ npm run dev -w @atlas/web     # terminal 2: http://localhost:5173
 ```
 
 Open http://localhost:5173 and click **Sign in**. Locally, sign-in uses the mock OIDC issuer, so there's no password: you're "Local Developer" (ADR 0007).
+
+Or run the whole app from the production images, the same Dockerfiles that Azure runs:
+
+```bash
+docker compose --profile full up -d --build --wait   # http://localhost:8080
+docker compose --profile full down                   # stops everything, keeps the database
+```
 
 Or call the API directly with a token from the mock issuer:
 

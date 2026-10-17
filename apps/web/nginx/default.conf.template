@@ -1,0 +1,42 @@
+# The web app's server. The nginx image renders this template at container start: each
+# ${NAME} becomes that environment variable (only the names NGINX_ENVSUBST_FILTER allows, see
+# the Dockerfile), and nginx's own variables, like $uri, are left alone.
+
+gzip on;
+gzip_types text/css application/javascript application/json image/svg+xml;
+
+server {
+    listen 8080;
+    root /usr/share/nginx/html;
+    server_tokens off;
+
+    # The API, on the same origin as the app, so the browser needs no CORS (spec §10).
+    location /api/ {
+        proxy_pass http://${API_UPSTREAM};
+    }
+
+    # This environment's settings, which the app reads at startup: one image, configured per
+    # environment by its variables (ADR 0007). Every value is a public identifier.
+    location = /config.json {
+        include /etc/nginx/conf.d/atlas/security-headers.conf;
+        add_header Cache-Control "no-store" always;
+        default_type application/json;
+        return 200 '{"env":"${ATLAS_ENV}","auth":{"kind":"${AUTH_KIND}","authority":"${AUTH_AUTHORITY}","clientId":"${AUTH_CLIENT_ID}","apiScope":"${AUTH_API_SCOPE}"}}';
+    }
+
+    # Vite's hashed build output: a file's name changes whenever its content does, so browsers
+    # may keep it forever. A missing file is a 404, never index.html.
+    location /assets/ {
+        include /etc/nginx/conf.d/atlas/security-headers.conf;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    # Everything else is the single-page app. index.html is never cached, so a deploy shows up
+    # on the next page load.
+    location / {
+        include /etc/nginx/conf.d/atlas/security-headers.conf;
+        add_header Cache-Control "no-store" always;
+        try_files $uri /index.html;
+    }
+}

@@ -1,4 +1,6 @@
-# Local development dependencies: docker compose up -d
+# Local development. `docker compose up -d --wait` starts Postgres and the mock OIDC issuer for
+# the dev servers. `docker compose --profile full up -d --build --wait` also builds the
+# production images and runs migrate, api and web on http://localhost:8080 (spec §14.3).
 name: atlas
 
 services:
@@ -27,6 +29,74 @@ services:
       - '8090:8080'
     volumes:
       - ./dev/mock-oidc/config.json:/config/mock-oidc.json:ro
+
+  # The full profile: the same Dockerfiles as Azure, with ATLAS_ENV=ci so the API trusts the mock.
+  migrate:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: atlas-api:local
+    command: [node, apps/api/dist/migrate.js]
+    environment:
+      ATLAS_ENV: ci
+      DB_AUTH: password
+      DATABASE_URL: postgres://atlas_migrator:atlas_migrator@postgres:5432/atlas
+      API_ROLE_NAME: atlas_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: atlas-api:local
+    environment:
+      ATLAS_ENV: ci
+      # Tokens carry the issuer address the browser used. Inside Docker, localhost is the API's
+      # own container, so the API fetches the signing keys from the mock by its service name.
+      OIDC_ISSUER: http://localhost:8090/atlas
+      OIDC_JWKS_URI: http://mock-oidc:8080/atlas/jwks
+      OIDC_AUDIENCE: atlas-api
+      DB_AUTH: password
+      DATABASE_URL: postgres://atlas_app:atlas_app@postgres:5432/atlas
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      # 127.0.0.1, not localhost: in a container, localhost resolves to IPv6 (::1) first.
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:3000/api/health/ready]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  web:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: atlas-web:local
+    environment:
+      ATLAS_ENV: ci
+      AUTH_KIND: mock
+      AUTH_AUTHORITY: http://localhost:8090/atlas
+      AUTH_CLIENT_ID: atlas-web
+      AUTH_API_SCOPE: atlas-api/access_as_user
+      API_UPSTREAM: api:3000
+    ports:
+      - '8080:8080'
+    depends_on:
+      api:
+        condition: service_healthy
+        # nginx looks up the API's address once, at start, so restart it with the API.
+        restart: true
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/]
+      interval: 2s
+      timeout: 3s
+      retries: 15
 
 volumes:
   postgres-data:

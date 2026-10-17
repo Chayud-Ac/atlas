@@ -12,6 +12,7 @@ REPO="${ATLAS_REPO:-Chayud-Ac/atlas}"
 # Names must match the job `name:` exactly. Add to this list as milestones add jobs.
 REQUIRED_CHECKS=(
   "check"
+  "build-images"
   "dependency-review"
   "pr-title"
   "Analyze (javascript-typescript)"
