@@ -90,6 +90,43 @@ jobs:
           ignore-unfixed: true
           exit-code: '1'
 
+  e2e:
+    name: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # The same stack as locally: the production images, with the mock sign-in server (ADR 0009).
+      - name: Start the stack
+        run: docker compose --profile full up -d --build --wait
+
+      # Playwright advises installing browsers on every run instead of caching them: restoring a
+      # cache takes about as long, and the system packages the browser needs can't be cached.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run test:e2e
+
+      - name: Container logs
+        if: failure()
+        run: docker compose --profile full logs
+
+      - name: Upload the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: tests/e2e/playwright-report
+          retention-days: 7
+
   dependency-review:
     name: dependency-review
     if: github.event_name == 'pull_request'

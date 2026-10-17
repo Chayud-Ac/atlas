@@ -8,3 +8,5 @@
 **/.env.*
 apps/web/public/config.json
 .git
+**/playwright-report
+**/test-results

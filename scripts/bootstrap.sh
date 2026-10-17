@@ -13,6 +13,7 @@ REPO="${ATLAS_REPO:-Chayud-Ac/atlas}"
 REQUIRED_CHECKS=(
   "check"
   "build-images"
+  "e2e"
   "dependency-review"
   "pr-title"
   "Analyze (javascript-typescript)"

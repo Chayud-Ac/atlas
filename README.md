@@ -11,7 +11,7 @@ A scaffold for internal company apps on Azure: React + Express in TypeScript, Po
 - Express 5 API with Entra-style token validation, RFC 9457 errors and audit events
 - PostgreSQL with Entra-only auth in Azure, a least-privilege runtime role and migrations as a separate job, tested against real Postgres with Testcontainers
 - Non-root container images (nginx for the web app), scanned for vulnerabilities in CI; the whole app runs locally from the same images
-- Every change goes through a pull request, gated by lint, type, test, dependency and CodeQL checks
+- Every change goes through a pull request, gated by lint, type, test, image-scan, end-to-end, dependency and CodeQL checks
 - (coming) GitHub Actions → Azure with OIDC, dev → uat → prod promotion of one immutable image
 
 ## Quickstart
@@ -42,6 +42,13 @@ Or run the whole app from the production images, the same Dockerfiles that Azure
 ```bash
 docker compose --profile full up -d --build --wait   # http://localhost:8080
 docker compose --profile full down                   # stops everything, keeps the database
+```
+
+The end-to-end tests run against that stack:
+
+```bash
+npx playwright install chromium   # once
+npm run test:e2e
 ```
 
 Or call the API directly with a token from the mock issuer:

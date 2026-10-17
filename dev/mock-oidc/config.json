@@ -6,6 +6,20 @@
       "tokenExpiry": 3600,
       "requestMappings": [
         {
+          "requestParam": "client_id",
+          "match": "atlas-e2e-second-user",
+          "claims": {
+            "sub": "e2e-second-user",
+            "aud": ["atlas-api"],
+            "oid": "33333333-3333-4333-8333-333333333333",
+            "tid": "22222222-2222-4222-8222-222222222222",
+            "scp": "access_as_user",
+            "name": "Second User",
+            "preferred_username": "second.user@example.com",
+            "roles": []
+          }
+        },
+        {
           "requestParam": "scope",
           "match": "*",
           "claims": {
