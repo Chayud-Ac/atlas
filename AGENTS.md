@@ -146,13 +146,13 @@ npm run test:e2e                                     # HTML report: tests/e2e/pl
 
 ## Azure (`infra/`)
 
-Three environments on an Azure for Students subscription, one region each because its quota allows one Container Apps environment per region (ADR 0017): **dev** in `japaneast` (with the shared registry), **uat** in `malaysiawest`, **prod** in `japanwest`. Identities and the absence of credentials: ADR 0004. Networking (dev's Postgres is public, UAT and prod are private): ADR 0008.
+Three environments (dev, uat, prod), all in `japaneast` on an Azure for Students subscription. The subscription allows **one Container Apps environment**, so `cae-atlas` lives in `rg-atlas-shared` and every stage runs its own apps in it (ADR 0017). Identities and the absence of credentials: ADR 0004. Networking (dev's Postgres is public, UAT and prod are private in the shared VNet): ADR 0008.
 
 | Path                             | Holds                                                                                                 |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `infra/config/environments.json` | Every per-environment setting (location, network, replicas, retention). Templates read only this file |
-| `infra/shared.bicep`             | The container registry, shared by all environments                                                    |
-| `infra/platform.bicep`           | One environment's network, logs, workload identities, Container Apps environment and Postgres         |
+| `infra/shared.bicep`             | What all stages share: the registry, the VNet, logs and the one Container Apps environment            |
+| `infra/platform.bicep`           | One stage's own resources: workload identities and Postgres (private in UAT and prod)                 |
 | `infra/migrate.bicep`            | The migration job (the API image with the migrate command)                                            |
 | `infra/apps.bicep`               | The API (internal ingress) and web (public) container apps                                            |
 | `infra/modules/`                 | Pieces deployed from those templates: AcrPull on the registry, the Postgres Entra admins              |

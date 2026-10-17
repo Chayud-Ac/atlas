@@ -13,7 +13,7 @@ A scaffold for internal company apps on Azure: React + Express in TypeScript, Po
 - Non-root container images (nginx for the web app), scanned for vulnerabilities in CI; the whole app runs locally from the same images
 - Every change goes through a pull request, gated by lint, type, test, image-scan, end-to-end, dependency and CodeQL checks
 - GitHub Actions → Azure with OIDC and no stored credentials: a merge to `main` builds one image per app and deploys it to Azure Container Apps (dev), infrastructure in Bicep with a what-if preview on every pull request
-- dev → uat → prod promotion of the same image, with approval gates, private Postgres networking in UAT and prod, a delete lock on prod, and a GitHub Release per prod deploy
+- dev → uat → prod promotion of the same image, with approval gates, private Postgres networking in UAT and prod (one shared Container Apps environment, as the student subscription requires), a delete lock on prod, and a GitHub Release per prod deploy
 
 ## Quickstart
 

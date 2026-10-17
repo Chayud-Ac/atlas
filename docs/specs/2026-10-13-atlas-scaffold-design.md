@@ -53,25 +53,25 @@ Items excluded on cost or tenant grounds are listed in §17.
 
 ## 2. Decisions at a glance
 
-| Area                 | Decision                                                                                                                                                                              |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Repo                 | Public `Chayud-Ac/atlas`, npm workspaces monorepo, trunk-based (`main` only)                                                                                                          |
-| Language / runtime   | TypeScript (strict), Node 24 LTS                                                                                                                                                      |
-| Web                  | Vite + React, Fluent UI v9, TanStack Query, MSAL behind an app-owned `Auth`, runtime `/config.json`, nginx (unprivileged)                                                             |
-| API                  | Express 5, zod, pino, OpenTelemetry, Drizzle ORM                                                                                                                                      |
-| Database             | PostgreSQL 17 Flexible Server B1ms per environment, Entra-only auth, schema `app`                                                                                                     |
-| Hosting              | Azure Container Apps, VNet-integrated (web external, API internal), migrations as a Container Apps Job                                                                                |
-| Environments         | `dev` → `uat` → `prod`, one resource group each, plus `shared` (registry) and `cicd` (pipeline identities)                                                                            |
-| Promotion            | Build once (tag = git SHA), deploy the same image to each environment. UAT and prod need approval                                                                                     |
-| Infra as code        | Bicep, with all per-environment differences in one `infra/config/environments.json`                                                                                                   |
-| Pipeline → Azure     | User-assigned managed identities with federated credentials (OIDC), one per environment plus `shared` and `plan`                                                                      |
-| Users → app          | Entra ID, app registrations `atlas-{env}-web` / `atlas-{env}-api`, single-tenant                                                                                                      |
-| App → Azure services | Per-app user-assigned managed identities (ACR pull, Postgres)                                                                                                                         |
-| Observability        | Application Insights (workspace-based) + Log Analytics per environment. Alerts and availability tests in prod                                                                         |
-| Governance           | Tags, Azure Policy (allowed locations, required `env` tag), $100 budget alerts, delete lock on prod                                                                                   |
-| Supply chain         | CodeQL, dependency review, secret scanning + push protection, Dependabot, Trivy, SBOM + provenance attestations, SHA-pinned actions, PSRule for Azure                                 |
-| Tests                | Vitest, Supertest, Testcontainers, React Testing Library, MSW, Playwright + mock OIDC server                                                                                          |
-| Region               | One per environment (the student offer allows five regions and one Container Apps environment per region; ADR 0017): dev and shared `japaneast`, uat `malaysiawest`, prod `japanwest` |
+| Area                 | Decision                                                                                                                                                                    |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repo                 | Public `Chayud-Ac/atlas`, npm workspaces monorepo, trunk-based (`main` only)                                                                                                |
+| Language / runtime   | TypeScript (strict), Node 24 LTS                                                                                                                                            |
+| Web                  | Vite + React, Fluent UI v9, TanStack Query, MSAL behind an app-owned `Auth`, runtime `/config.json`, nginx (unprivileged)                                                   |
+| API                  | Express 5, zod, pino, OpenTelemetry, Drizzle ORM                                                                                                                            |
+| Database             | PostgreSQL 17 Flexible Server B1ms per environment, Entra-only auth, schema `app`                                                                                           |
+| Hosting              | Azure Container Apps, VNet-integrated (web external, API internal), migrations as a Container Apps Job                                                                      |
+| Environments         | `dev` → `uat` → `prod`, one resource group each, plus `shared` (registry) and `cicd` (pipeline identities)                                                                  |
+| Promotion            | Build once (tag = git SHA), deploy the same image to each environment. UAT and prod need approval                                                                           |
+| Infra as code        | Bicep, with all per-environment differences in one `infra/config/environments.json`                                                                                         |
+| Pipeline → Azure     | User-assigned managed identities with federated credentials (OIDC), one per environment plus `shared` and `plan`                                                            |
+| Users → app          | Entra ID, app registrations `atlas-{env}-web` / `atlas-{env}-api`, single-tenant                                                                                            |
+| App → Azure services | Per-app user-assigned managed identities (ACR pull, Postgres)                                                                                                               |
+| Observability        | Application Insights (workspace-based) + Log Analytics per environment. Alerts and availability tests in prod                                                               |
+| Governance           | Tags, Azure Policy (allowed locations, required `env` tag), $100 budget alerts, delete lock on prod                                                                         |
+| Supply chain         | CodeQL, dependency review, secret scanning + push protection, Dependabot, Trivy, SBOM + provenance attestations, SHA-pinned actions, PSRule for Azure                       |
+| Tests                | Vitest, Supertest, Testcontainers, React Testing Library, MSW, Playwright + mock OIDC server                                                                                |
+| Region               | `japaneast` for everything, with one Container Apps environment shared by all stages (the student offer allows five regions and one environment per subscription; ADR 0017) |
 
 ## 3. Environments and promotion
 
@@ -83,7 +83,7 @@ anywhere else.
 
 | Setting                            | dev                                                                        | uat                                             | prod                                            |
 | ---------------------------------- | -------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------- |
-| Region                             | `japaneast`                                                                | `malaysiawest`                                  | `japanwest`                                     |
+| Region                             | `japaneast` (one shared Container Apps environment and VNet, ADR 0017)     | `japaneast`                                     | `japaneast`                                     |
 | Deploy gate                        | automatic after build                                                      | required reviewer                               | required reviewer                               |
 | Container Apps replicas (web, api) | min 0 / max 1                                                              | min 0 / max 2                                   | **min 1** / max 3                               |
 | Replica size                       | 0.25 vCPU / 0.5 GiB                                                        | same                                            | same                                            |
@@ -135,6 +135,12 @@ deploy-env.yml (ONE job, so ONE approval per environment):
 ## 4. Architecture
 
 ### 4.1 Per environment
+
+> **As built (M6, ADR 0017):** the subscription allows one Container Apps
+> environment, so `cae-atlas`, `vnet-atlas-shared` and `log-atlas-shared` live
+> in `rg-atlas-shared` and serve every stage. Each `rg-atlas-{env}` keeps its
+> identities, Postgres, apps and migration job; UAT and prod Postgres use
+> private subnets of the shared VNet (ADR 0008).
 
 ```
                     ┌──────────────── vnet-atlas-{env} ──────────────────────────────────┐
