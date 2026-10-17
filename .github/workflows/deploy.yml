@@ -1,0 +1,143 @@
+name: deploy
+
+# A merge to main runs CI again, deploys the shared registry, builds both images once (tagged with
+# the commit SHA), and deploys that SHA to dev (spec §3.2, §15). A manual run with `sha` set
+# redeploys an image that was already built: that's a rollback.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Roll back to this already built commit SHA (skips CI and the build)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+# One deploy at a time. A newer run waits rather than cancelling one halfway through.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    if: inputs.sha == ''
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      # Requested by ci.yml's dependency-review and what-if jobs, which skip on push.
+      pull-requests: write
+      id-token: write
+
+  shared:
+    needs: ci
+    if: always() && (needs.ci.result == 'success' || needs.ci.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: shared
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      login-server: ${{ steps.deploy.outputs.login-server }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy the registry (shared.bicep)
+        id: deploy
+        run: |
+          server="$(az deployment group create \
+            --resource-group "$(jq -r .shared.resourceGroup infra/config/environments.json)" \
+            --name shared --template-file infra/shared.bicep \
+            --query properties.outputs.loginServer.value --output tsv)"
+          echo "login-server=$server" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: shared
+    if: always() && needs.shared.result == 'success' && inputs.sha == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: shared
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      REGISTRY: ${{ needs.shared.outputs.login-server }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # An Entra token for the registry; it has no admin user or password.
+      - name: Sign in to the registry
+        run: az acr login --name "${REGISTRY%%.*}"
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the API image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          tags: ${{ env.REGISTRY }}/atlas-api:${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: Build the web image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          tags: ${{ env.REGISTRY }}/atlas-web:${{ github.sha }}
+          load: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+      # The same scan as in CI, on the exact images that get pushed.
+      - name: Scan the API image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/atlas-api:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Scan the web image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/atlas-web:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Push both images
+        run: |
+          docker push "$REGISTRY/atlas-api:$GITHUB_SHA"
+          docker push "$REGISTRY/atlas-web:$GITHUB_SHA"
+
+  dev:
+    needs: [shared, build]
+    if: >-
+      always() && needs.shared.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
+    uses: ./.github/workflows/deploy-env.yml
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: dev
+      sha: ${{ inputs.sha || github.sha }}
+    secrets: inherit

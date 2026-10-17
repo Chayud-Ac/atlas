@@ -127,6 +127,51 @@ jobs:
           path: tests/e2e/playwright-report
           retention-days: 7
 
+  bicep:
+    name: bicep
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # Building runs the linter too; rules set to "error" in infra/bicepconfig.json fail the job.
+      - name: Build and lint the Bicep templates
+        run: |
+          az bicep install
+          for template in infra/*.bicep infra/modules/*.bicep; do
+            az bicep build --file "$template" --stdout > /dev/null
+            az bicep lint --file "$template"
+          done
+
+  what-if:
+    name: what-if
+    # The plan identity trusts pull-request tokens from this repo only. Forks and Dependabot get no
+    # OIDC token, and deploy.yml reuses this workflow on push, so the job is skipped there. A skipped
+    # job counts as passing.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # IDs are secrets so GitHub masks them in this public log (ADR 0004). Third-party actions are
+      # pinned to commit SHAs (see pr-title.yml).
+      - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_PLAN_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      # Writes the redacted preview to the job summary.
+      - name: Preview the changes in Azure
+        run: scripts/what-if.sh
+
   dependency-review:
     name: dependency-review
     if: github.event_name == 'pull_request'

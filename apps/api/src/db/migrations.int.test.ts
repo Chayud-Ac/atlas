@@ -1,7 +1,13 @@
 import type { Pool } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createLogger } from '../logging.js';
-import { APP_ROLE, connectAs, MIGRATIONS_FOLDER, resetData } from '../test/postgres.js';
+import {
+  APP_ROLE,
+  connectAs,
+  connectToPostgresDb,
+  MIGRATIONS_FOLDER,
+  resetData,
+} from '../test/postgres.js';
 import { APP_TABLE_GRANTS, runMigrationJob } from './migrations.js';
 
 const INSUFFICIENT_PRIVILEGE = { code: '42501' };
@@ -95,5 +101,36 @@ describe('the API runtime role', () => {
 
   it('cannot drop tables', async () => {
     await expect(app.query('DROP TABLE app.notes')).rejects.toMatchObject(INSUFFICIENT_PRIVILEGE);
+  });
+});
+
+describe('the runtime role in Azure', () => {
+  it("is created with Azure's pgaadauth function, which only the postgres database has", async () => {
+    const postgresDb = connectToPostgresDb();
+    try {
+      // A stand-in for Azure's function, in the postgres database only, as on Azure.
+      await postgresDb.query(`
+        CREATE OR REPLACE FUNCTION pgaadauth_create_principal_with_oid(
+          role_name text, object_id text, object_type text, is_admin boolean, is_mfa boolean)
+        RETURNS text LANGUAGE plpgsql AS $$
+        BEGIN
+          EXECUTE format('CREATE ROLE %I LOGIN', role_name);
+          RETURN 'Created role for ' || role_name;
+        END $$`);
+
+      await runMigrationJob(migrator, {
+        migrationsFolder: MIGRATIONS_FOLDER,
+        appRole: 'id-atlas-api-test',
+        entraRole: { principalId: '0199c3a0-0000-7000-8000-0000000000bb', postgresDb },
+        logger: createLogger('silent'),
+      });
+
+      const { rows } = await migrator.query<{ granted: boolean }>(
+        "SELECT has_table_privilege('id-atlas-api-test', 'app.notes', 'DELETE') AS granted",
+      );
+      expect(rows[0]?.granted).toBe(true);
+    } finally {
+      await postgresDb.end();
+    }
   });
 });

@@ -8,7 +8,7 @@ import { APP_ROLE, MIGRATIONS_FOLDER } from './postgres.js';
 
 declare module 'vitest' {
   export interface ProvidedContext {
-    postgres: { migratorUrl: string; appUrl: string };
+    postgres: { migratorUrl: string; appUrl: string; postgresDbUrl: string };
   }
 }
 
@@ -47,7 +47,11 @@ export default async function setup(project: TestProject): Promise<() => Promise
     await migrator.end();
   }
 
-  project.provide('postgres', { migratorUrl, appUrl });
+  // The superuser on the built-in `postgres` database, where Azure keeps its pgaadauth functions.
+  const postgresDbUrl = new URL(adminUrl);
+  postgresDbUrl.pathname = '/postgres';
+
+  project.provide('postgres', { migratorUrl, appUrl, postgresDbUrl: postgresDbUrl.toString() });
   return async () => {
     await container?.stop();
   };
