@@ -21,7 +21,7 @@ Atlas is a scaffold for internal company apps on Azure: React + Express in TypeS
 | `scripts/`  | `bootstrap.sh` and other operational scripts (bash, shellcheck-clean) |
 | `docs/`     | Specs, plans, ADRs, runbooks                                          |
 
-Current workspaces: `packages/shared`, `apps/api`, `apps/web`.
+Current workspaces: `packages/shared`, `apps/api`, `apps/web`, `tests/e2e`.
 
 ## Commands
 
@@ -37,6 +37,7 @@ Run these from the repo root.
 | `npm run build`                                      | Build every workspace (`vite build` for the web app)                     |
 | `npm test`                                           | Unit tests in every workspace (no Docker)                                |
 | `npm run test:integration`                           | Integration tests (need Docker)                                          |
+| `npm run test:e2e`                                   | Playwright tests against the running full stack (see "E2E tests")        |
 | `npm test -w @atlas/shared`                          | Tests for one workspace                                                  |
 | `docker compose up -d --wait`                        | Start local Postgres and the mock OIDC issuer                            |
 | `npm run db:migrate -w @atlas/api`                   | Apply migrations and grants locally (needs `apps/api/.env.migrate`)      |
@@ -59,7 +60,7 @@ Run these from the repo root.
 - **TypeScript:** strict, ESM. TypeScript is pinned to 6.0.x (ADR 0013), so don't upgrade it to 7.
   - API and shared use `module: nodenext`, so relative imports end in `.js` (`import { Note } from './notes.js'`).
   - The web app uses Vite's `bundler` resolution: no extensions, and `@/` means `apps/web/src/` (`import { useAuth } from '@/lib/auth/auth-context'`). Use `./` only within the same folder.
-- **Tests sit next to the code:** `*.test.ts` for unit tests, `*.int.test.ts` for integration tests. Write the failing test first for new behaviour.
+- **Tests sit next to the code:** `*.test.ts` for unit tests, `*.int.test.ts` for integration tests, and Playwright `*.spec.ts` in `tests/e2e/src/`. Write the failing test first for new behaviour.
 - **Validation:** zod schemas in `@atlas/shared` are the single source of truth for request and response shapes. Infer types with `z.infer`. Never hand-write a duplicate type.
 - **API files: group code that changes together** (ADR 0014). A feature is three files: `<feature>.routes.ts`, `<feature>.service.ts` (when there is business logic) and `<feature>.repository.ts`, which holds the record types, the interface _and_ the Postgres implementation. Split a file only when it passes ~200 lines or has two unrelated reasons to change. Don't create a file for one small type, class or function.
 - **Web files follow the Bulletproof React layout** (ADR 0015): `app/`, `components/`, `features/<feature>/{api,components}/`, `lib/`, `styles/`, `testing/`. Files are kebab-case (`note-form.tsx` exports `NoteForm`).
@@ -80,7 +81,7 @@ Run these from the repo root.
 4. **Repository:** `src/<feature>/<feature>.repository.ts` (types, interface and Postgres implementation), plus an in-memory double in `src/test/in-memory-store.ts`. If it joins the unit of work, add it to `Repositories` in `src/db/database.ts`.
 5. **Service:** `<feature>.service.ts`. Writes go through `unitOfWork.run(...)` and record an audit event in the same transaction.
 6. **Routes:** `<feature>.routes.ts`. Validate with `parseOrThrow`, take the caller from `authOf(req)`, and mount the router in `app.ts` behind `replicaLimit, signedIn, perUserLimit`.
-7. **Tests:** service unit tests, HTTP tests in `app.test.ts`, and `*.int.test.ts` for SQL behaviour such as ownership.
+7. **Tests:** service unit tests, HTTP tests in `app.test.ts`, `*.int.test.ts` for SQL behaviour such as ownership, and a Playwright test in `tests/e2e/src/` for the main user flow.
 8. **UI** in `apps/web/src/features/<feature>/`:
    - `api/use-<feature>.ts` holds the TanStack Query hooks. They call `useApi()`, and every response is parsed with the shared schema.
    - `components/` holds the components: a `<feature>-page.tsx` plus its parts (`note-form.tsx`, `note-card.tsx`). UI shared by two or more features goes in `src/components/`.
@@ -127,6 +128,21 @@ Web code rules:
 - **Show failures with `<ErrorMessage>`.** It shows only API problem details (never raw errors) and the request id.
 - **Validate forms with the shared zod schema** before calling the API, then map any problem `errors` from the API onto the fields.
 - **Tests go through MSW.** Never mock `fetch` by hand. Query by role and label (`getByRole('button', { name: 'Add note' })`), as a user or screen reader would.
+
+## E2E tests (`tests/e2e`)
+
+Playwright drives Chromium against the compose `full` stack (ADR 0009). CI runs them on every pull request (`e2e`).
+
+```bash
+docker compose --profile full up -d --build --wait   # the stack, built from your working tree
+npx playwright install chromium                      # once per machine
+npm run test:e2e                                     # HTML report: tests/e2e/playwright-report
+```
+
+- Import `test`, `expect` and `signIn` from `./fixtures.js`. That `test` fails any test whose page reports a CSP violation.
+- `signIn(page)` signs in as Local Developer. For a second user, copy `users see only their own notes`: it sets `auth.clientId` to `atlas-e2e-second-user` in `/config.json`.
+- The database is shared with manual testing: create your own data with unique names, look only for it, and delete it at the end.
+- Query by role and label, as in the component tests.
 
 ## Git and pull requests
 
