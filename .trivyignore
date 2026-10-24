@@ -1,0 +1,7 @@
+# Vulnerabilities CI's Trivy scan accepts for now. Every entry needs a reason and an expiry date,
+# after which Trivy reports it again.
+
+# @azure/msal-node 6.x, from @azure/identity 4.14.0, which requires ^6; the fix is only in 7.1.0.
+# It affects the auth-code flow, and the API uses ManagedIdentityCredential only.
+# Remove when @azure/identity allows msal-node 7.
+CVE-2026-109461 exp:2026-11-24
