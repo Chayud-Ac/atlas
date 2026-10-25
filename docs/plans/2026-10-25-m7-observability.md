@@ -1242,7 +1242,7 @@ Only dev has human database access. In UAT and prod, the check is that App Insig
 
 ## Execution notes
 
-1. **#22's per-environment locks weren't tested by the plan's merge (#23).** #22's own run never waited at UAT, because its dev deploy had failed. `platform.bicep` got `ServerIsBusy`: the dev Postgres server was busy with an operation that isn't in the activity log. It was `Ready` again an hour later, and #23's run deployed dev without trouble. The lock test moves to this PR's merge, with #23's run waiting at UAT.
+1. **#22's per-environment locks weren't tested by the plan's merge (#23).** #22's own run never waited at UAT, because its dev deploy had failed. `platform.bicep` got `ServerIsBusy`: the dev Postgres server was busy with an operation that isn't in the activity log. It was `Ready` again an hour later, and #23's run deployed dev without trouble. The lock test moves to this PR's merge, with #23's run waiting at prod.
 2. **The plan's integration test command was wrong.** It needs `--config vitest.integration.config.ts`. Fixed in Task 1.
 3. **One `@opentelemetry/instrumentation` for everything that matters.** Express, HTTP, pg and Azure Monitor all share 0.221.0. Two nested copies are outside our control:
    - Azure's own `@azure/opentelemetry-instrumentation-azure-sdk` (1.1.0-beta.1) nests 0.211. At worst, that means fewer spans for Azure SDK calls, such as the identity token fetches.
@@ -1251,4 +1251,5 @@ Only dev has human database access. In UAT and prod, the check is that App Insig
 5. **The API image with telemetry on** served `200` on `/api/health/ready` and `401` on `/api/notes`, sending to a closed port, with no exporter errors in its log.
 6. **The E2E telemetry test takes 0.6 seconds, not 15.** The SDK also sends its batch when the page unloads, which it does as sign-in redirects to the mock issuer. All 5 E2E tests passed, with no CSP violations.
 7. **The browser SDK is 77 KB gzipped** (the `telemetry` chunk), about the same as Fluent's. Accepted for an internal app; lazy loading would only help locally, where telemetry is off.
-8. **The Bicep linter suggested newer GA API versions:** `metricAlerts@2026-01-01` and `scheduledQueryRules@2026-03-01`. Both are used, and every template builds without warnings.
+8. **Task 10's validation deploys took about 4–5 minutes per stage.** Almost all of it is Postgres re-applying unchanged settings (the server about 2 minutes, the DNS link 1, the Entra admins 1–2). The new workspace, App Insights and log setting took under 30 seconds together. `bootstrap.sh prod` set `ALERT_EMAIL`.
+9. **The Bicep linter suggested newer GA API versions:** `metricAlerts@2026-01-01` and `scheduledQueryRules@2026-03-01`. Both are used, and every template builds without warnings.

@@ -2,7 +2,7 @@
 
 A scaffold for internal company apps on Azure: React + Express in TypeScript, PostgreSQL, Azure Container Apps, Bicep and GitHub Actions, with **no stored secrets anywhere**.
 
-> **Status:** under construction. Milestone M6 (UAT + prod) of M9. See the [design spec](docs/specs/2026-10-13-atlas-scaffold-design.md).
+> **Status:** under construction. Milestone M7 (observability) of M9. See the [design spec](docs/specs/2026-10-13-atlas-scaffold-design.md).
 
 ## What it demonstrates
 
@@ -14,6 +14,7 @@ A scaffold for internal company apps on Azure: React + Express in TypeScript, Po
 - Every change goes through a pull request, gated by lint, type, test, image-scan, end-to-end, dependency and CodeQL checks
 - GitHub Actions → Azure with OIDC and no stored credentials: a merge to `main` builds one image per app and deploys it to Azure Container Apps (dev), infrastructure in Bicep with a what-if preview on every pull request
 - dev → uat → prod promotion of the same image, with approval gates, private Postgres networking in UAT and prod (one shared Container Apps environment, as the student subscription requires), a delete lock on prod, and a GitHub Release per prod deploy
+- Observability: OpenTelemetry and the browser SDK send to Application Insights per stage, one trace from page view to SQL (its ID stored with each audit row), and prod alerts on availability, server errors and failed migrations
 
 ## Quickstart
 
