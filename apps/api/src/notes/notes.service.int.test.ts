@@ -36,8 +36,8 @@ beforeEach(async () => {
     email: null,
     displayName: 'Bob',
   });
-  alice = { userId: a.id, requestId: 'req-a' };
-  bob = { userId: b.id, requestId: 'req-b' };
+  alice = { userId: a.id, requestId: 'req-a', traceId: '4bf92f3577b34da6a3ce929d0e0e4736' };
+  bob = { userId: b.id, requestId: 'req-b', traceId: null };
 });
 
 afterAll(async () => {
@@ -71,10 +71,14 @@ describe('NotesService on Postgres', () => {
       action: string;
       entity_id: string;
       request_id: string;
-    }>('SELECT action, entity_id, request_id FROM app.audit_events ORDER BY occurred_at, id');
+      trace_id: string | null;
+    }>(
+      'SELECT action, entity_id, request_id, trace_id FROM app.audit_events ORDER BY occurred_at, id',
+    );
+    const traceId = '4bf92f3577b34da6a3ce929d0e0e4736';
     expect(rows).toEqual([
-      { action: 'note.created', entity_id: note.id, request_id: 'req-a' },
-      { action: 'note.deleted', entity_id: note.id, request_id: 'req-a' },
+      { action: 'note.created', entity_id: note.id, request_id: 'req-a', trace_id: traceId },
+      { action: 'note.deleted', entity_id: note.id, request_id: 'req-a', trace_id: traceId },
     ]);
   });
 

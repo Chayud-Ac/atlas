@@ -3,8 +3,16 @@ import { NotFoundError } from '../errors.js';
 import { createInMemoryStore, type InMemoryStore } from '../test/in-memory-store.js';
 import { createNotesService, type Actor, type NotesService } from './notes.service.js';
 
-const alice: Actor = { userId: '0199c3a0-0000-7000-8000-00000000000a', requestId: 'req-alice' };
-const bob: Actor = { userId: '0199c3a0-0000-7000-8000-00000000000b', requestId: 'req-bob' };
+const alice: Actor = {
+  userId: '0199c3a0-0000-7000-8000-00000000000a',
+  requestId: 'req-alice',
+  traceId: '0af7651916cd43dd8448eb211c80319c',
+};
+const bob: Actor = {
+  userId: '0199c3a0-0000-7000-8000-00000000000b',
+  requestId: 'req-bob',
+  traceId: null,
+};
 
 let store: InMemoryStore;
 let service: NotesService;
@@ -15,7 +23,7 @@ beforeEach(() => {
 });
 
 describe('NotesService', () => {
-  it('creates a note owned by the actor and audits it with the request id', async () => {
+  it('creates a note owned by the actor and audits it with the request and trace ids', async () => {
     const note = await service.create(alice, { title: 'Groceries', body: 'Milk' });
 
     expect(note).toMatchObject({ ownerId: alice.userId, title: 'Groceries', body: 'Milk' });
@@ -26,6 +34,7 @@ describe('NotesService', () => {
         entityType: 'note',
         entityId: note.id,
         requestId: 'req-alice',
+        traceId: '0af7651916cd43dd8448eb211c80319c',
       },
     ]);
   });

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { context, isSpanContextValid, trace, type Context } from '@opentelemetry/api';
 import {
   pino,
   type DestinationStream,
@@ -58,4 +59,13 @@ export function httpLogger(logger: Logger): HttpLogger {
  */
 export function requestIdOf(req: IncomingMessage & { id?: unknown }): string {
   return typeof req.id === 'string' ? req.id : '';
+}
+
+/**
+ * The W3C trace id of the current request, for audit rows: search for it in Application Insights
+ * (`OperationId`) to see the page, the API request and its SQL. Null when telemetry is off.
+ */
+export function traceIdOf(ctx: Context = context.active()): string | null {
+  const span = trace.getSpanContext(ctx);
+  return span && isSpanContextValid(span) ? span.traceId : null;
 }

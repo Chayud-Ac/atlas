@@ -224,7 +224,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
 
 - [ ] **Step 9: Run the tests.**
   - `(cd apps/api && npx vitest run src/notes/notes.service.test.ts)`: PASS.
-  - With Docker running, `(cd apps/api && npx vitest run src/notes/notes.service.int.test.ts)`: PASS.
+  - With Docker running, `(cd apps/api && npx vitest run --config vitest.integration.config.ts src/notes/notes.service.int.test.ts)`: PASS.
   - `npm run typecheck`: clean.
 
 - [ ] **Step 10: The user commits.** `git add apps/api package-lock.json && git commit -m "feat(api): record the trace id in audit rows"`

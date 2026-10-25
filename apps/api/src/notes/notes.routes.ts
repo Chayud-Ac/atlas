@@ -3,7 +3,7 @@ import { Router, type Request } from 'express';
 import { z } from 'zod';
 import { authOf } from '../auth/authenticate.js';
 import { parseOrThrow } from '../errors.js';
-import { requestIdOf } from '../logging.js';
+import { requestIdOf, traceIdOf } from '../logging.js';
 import type { NoteRecord } from './notes.repository.js';
 import type { Actor, NotesService } from './notes.service.js';
 
@@ -33,8 +33,9 @@ export function notesRouter(notes: NotesService): Router {
   return router;
 }
 
+// Called before each handler's first await, so the active trace is still this request's.
 function actorOf(req: Request): Actor {
-  return { userId: authOf(req).userId, requestId: requestIdOf(req) };
+  return { userId: authOf(req).userId, requestId: requestIdOf(req), traceId: traceIdOf() };
 }
 
 /** The API's JSON shape for a note: no owner id, ISO 8601 timestamps. */

@@ -7,6 +7,7 @@ import type { NoteRecord } from './notes.repository.js';
 export interface Actor {
   userId: string;
   requestId: string;
+  traceId: string | null;
 }
 
 export interface NotesService {
@@ -29,6 +30,7 @@ export function createNotesService(unitOfWork: UnitOfWork): NotesService {
           entityType: 'note',
           entityId: note.id,
           requestId: actor.requestId,
+          traceId: actor.traceId,
         });
         return note;
       }),
@@ -44,6 +46,7 @@ export function createNotesService(unitOfWork: UnitOfWork): NotesService {
           entityType: 'note',
           entityId: noteId,
           requestId: actor.requestId,
+          traceId: actor.traceId,
         });
       }),
   };
