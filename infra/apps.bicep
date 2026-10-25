@@ -17,6 +17,9 @@ param webClientId string
 @description('Client id of the atlas-{env}-api app registration: the audience of access tokens.')
 param apiClientId string
 
+@description('Where alerts are emailed: the ALERT_EMAIL secret. Empty in stages without alerts.')
+param alertEmail string = ''
+
 var config = loadJsonContent('config/environments.json')
 var env = config.environments[environmentName]
 var tags = union(config.tags, { env: environmentName })
@@ -149,6 +152,18 @@ resource web 'Microsoft.App/containerApps@2026-07-01' = {
       ]
       scale: scale
     }
+  }
+}
+
+// Prod only (spec §11.2). deploy-env.yml refuses to deploy a stage that has alerts but no email.
+// The !empty check is for the PR what-if: it reuses the last deployment's parameters, which have
+// no alertEmail until the first deploy after this one.
+module alerts 'modules/alerts.bicep' = if (env.alerts && !empty(alertEmail)) {
+  name: 'alerts-${environmentName}'
+  params: {
+    environmentName: environmentName
+    alertEmail: alertEmail
+    healthUrl: 'https://${web.properties.configuration.ingress.fqdn}/api/health/ready'
   }
 }
 
