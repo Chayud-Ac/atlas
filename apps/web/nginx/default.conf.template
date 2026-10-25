@@ -21,7 +21,7 @@ server {
         include /etc/nginx/conf.d/atlas/security-headers.conf;
         add_header Cache-Control "no-store" always;
         default_type application/json;
-        return 200 '{"env":"${ATLAS_ENV}","auth":{"kind":"${AUTH_KIND}","authority":"${AUTH_AUTHORITY}","clientId":"${AUTH_CLIENT_ID}","apiScope":"${AUTH_API_SCOPE}"}}';
+        return 200 '{"env":"${ATLAS_ENV}","auth":{"kind":"${AUTH_KIND}","authority":"${AUTH_AUTHORITY}","clientId":"${AUTH_CLIENT_ID}","apiScope":"${AUTH_API_SCOPE}"},"telemetry":{"connectionString":"${APPLICATIONINSIGHTS_CONNECTION_STRING}"}}';
     }
 
     # Vite's hashed build output: a file's name changes whenever its content does, so browsers

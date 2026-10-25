@@ -3,8 +3,9 @@
 # headers to error responses too.
 #
 # style-src allows inline styles because Fluent UI creates <style> tags at runtime (ADR 0016).
-# frame-src lets MSAL renew tokens in a hidden iframe.
-add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${AUTH_ORIGIN}; frame-src ${AUTH_ORIGIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
+# frame-src lets MSAL renew tokens in a hidden iframe. connect-src includes Application Insights'
+# ingestion origin, from the connection string.
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${AUTH_ORIGIN} ${TELEMETRY_ORIGIN}; frame-src ${AUTH_ORIGIN}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'" always;
 add_header X-Content-Type-Options "nosniff" always;
 add_header Referrer-Policy "no-referrer" always;
 # Browsers ignore this over plain http (locally); in Azure the site is https only.
