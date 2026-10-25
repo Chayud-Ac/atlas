@@ -50,6 +50,10 @@ resource registry 'Microsoft.ContainerRegistry/registries@2025-11-01' existing =
   scope: resourceGroup(config.shared.resourceGroup)
 }
 
+resource appInsights 'Microsoft.Insights/components@2020-02-02' existing = {
+  name: 'appi-atlas-${environmentName}'
+}
+
 resource api 'Microsoft.App/containerApps@2026-07-01' = {
   name: 'ca-atlas-api-${environmentName}'
   location: env.location
@@ -91,6 +95,10 @@ resource api 'Microsoft.App/containerApps@2026-07-01' = {
             { name: 'PGDATABASE', value: 'atlas' }
             { name: 'PGUSER', value: apiIdentity.name }
             { name: 'AZURE_CLIENT_ID', value: apiIdentity.properties.clientId }
+            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
+            // The cloud role name in App Insights, and the version that served each request.
+            { name: 'OTEL_SERVICE_NAME', value: 'atlas-api' }
+            { name: 'OTEL_RESOURCE_ATTRIBUTES', value: 'service.version=${imageTag}' }
           ]
           probes: [
             { type: 'Liveness', httpGet: { path: '/api/health/live', port: 3000 }, periodSeconds: 10 }
@@ -134,6 +142,7 @@ resource web 'Microsoft.App/containerApps@2026-07-01' = {
             { name: 'AUTH_CLIENT_ID', value: webClientId }
             { name: 'AUTH_API_SCOPE', value: 'api://${apiClientId}/access_as_user' }
             { name: 'API_UPSTREAM', value: api.name }
+            { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
           ]
           probes: [{ type: 'Liveness', httpGet: { path: '/', port: 8080 }, periodSeconds: 10 }]
         }
