@@ -5,7 +5,7 @@
 # Build from the repo root: docker build -f apps/web/Dockerfile .
 
 # ---- Build: install dependencies and bundle the app ----
-FROM node:24.21.0-alpine3.24 AS build
+FROM node:24.22.1-alpine3.24 AS build
 WORKDIR /app
 
 COPY --parents package.json package-lock.json apps/*/package.json packages/*/package.json tests/*/package.json ./
