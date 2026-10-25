@@ -155,7 +155,7 @@ Browser ──HTTPS──►  │ cae-atlas-{env} (external, VNet-integrated, sn
                     │          ▼  uat/prod: private (snet-psql, private DNS)             │
                     │   psql-atlas-{env}-<suffix>     dev: public endpoint + firewall    │
                     └────────────────────────────────────────────────────────────────────┘
-   telemetry ─► appi-atlas-{env} ─► log-atlas-{env} ◄─ container + Postgres logs
+   telemetry ─► appi-atlas-{env} ─► log-atlas-{env} ◄─ Postgres logs   (container logs: log-atlas-shared)
    images    ◄─ cratlas<suffix> (rg-atlas-shared), pulled with each app's own identity
 ```
 
@@ -623,25 +623,43 @@ missing from that list.
 
 ### 11.1 Telemetry
 
-- **One workspace-based Application Insights per environment**
-  (`appi-atlas-{env}`), connected to `log-atlas-{env}`.
-- **API:** `@azure/monitor-opentelemetry` auto-instruments HTTP, Express and
-  `pg`.
-- **Web:** browser SDK.
+- **One workspace-based Application Insights per environment,**
+  `appi-atlas-{env}`. It sits in `log-atlas-{env}`, a Log Analytics
+  workspace in the stage's own resource group.
+- **API:** `@azure/monitor-opentelemetry` instruments HTTP and `pg`, and
+  `@opentelemetry/instrumentation-express` adds route names. It's loaded with
+  `node --import` before the app, and stays off without
+  `APPLICATIONINSIGHTS_CONNECTION_STRING` (locally, in CI). Health-probe
+  requests aren't recorded. Azure Monitor's default sampling keeps up to 5
+  traces a second.
+- **Web:** `@microsoft/applicationinsights-web` records page views, errors
+  and fetches, and adds W3C `traceparent` to same-origin calls. Cookies and
+  its CDN config fetch are off.
+- **One trace per page view:** the page view, its API calls and their SQL
+  share a trace ID. Each audit row stores it as `trace_id`; App Insights
+  calls it `OperationId`.
 - **Local auth stays enabled** on App Insights, because the browser SDK
-  can't use Entra auth. The connection string is not a secret.
-- **Container Apps environment and Postgres logs** go to Log Analytics
-  through diagnostic settings (Azure Monitor destination, no workspace
-  shared keys).
+  can't use Entra auth. The connection string isn't a secret: anyone can
+  read it from `/config.json`.
+- **Logs:**
+  - Container Apps logs from every stage stay in `log-atlas-shared`
+    (ADR 0017).
+  - Postgres's server log (`PostgreSQLLogs`) goes to `log-atlas-{env}`
+    through a diagnostic setting.
 
-### 11.2 Alerts (prod only)
+### 11.2 Alerts (stages with `alerts` in `environments.json`: prod)
 
-- **Action group** `ag-atlas-prod`, emailing `ALERT_EMAIL`.
-- **Standard availability tests** for `/` and `/api/health/ready`, from 3
-  locations every 5 minutes. The alert fires when 2 or more locations fail.
+- **Action group** `ag-atlas-prod`, emailing `ALERT_EMAIL`. `bootstrap.sh
+prod` sets that to the signed-in account's email.
+- **One standard availability test** of `/api/health/ready` through the
+  public web URL, so one request covers nginx, the API and Postgres:
+  - From Japan East, Southeast Asia and East Asia, every 15 minutes, with
+    retries: about $6 a month.
+  - The alert fires when 2 or more locations fail.
 - **Log alerts:**
-  - API failed requests > 5 in 5 minutes
-  - any failed migration job execution
+  - API server errors (5xx): more than 5 in 5 minutes
+  - any migration job execution with a non-zero exit code (from
+    `log-atlas-shared`)
 
 ### 11.3 Runbooks (`docs/runbooks/`)
 
@@ -652,20 +670,18 @@ missing from that list.
   `bootstrap.sh <env>`, add a job in `deploy.yml`, run
   `add-redirect-uri.sh`.
 - `database-access.md`:
-  - **dev:** `db-access.sh dev`, then `psql` with
+  - **dev:** `db-access.sh dev`, then `psql` as `atlas-dev-db-admins` with
     `az account get-access-token --resource-type oss-rdbms`
-  - **uat/prod:** no interactive human access. Data fixes ship as reviewed
-    migrations.
-  - **Emergency:** add yourself to `atlas-{env}-db-admins` and run a
-    reviewed one-off query through a manual run of the migration job. Every
-    step is recorded.
+  - **uat/prod:** no human access. Data fixes ship as reviewed migrations,
+    emergencies included: nothing outside the VNet can reach those
+    databases.
 
 ### 11.4 Human database access (summary)
 
-| Environment | Who                         | How                                                                        |
-| ----------- | --------------------------- | -------------------------------------------------------------------------- |
-| dev         | `atlas-dev-db-admins` (you) | open the firewall with `db-access.sh dev`, then `psql` with an Entra token |
-| uat, prod   | nobody by default           | reviewed migrations; emergency procedure in `database-access.md`           |
+| Environment | Who                         | How                                                                                  |
+| ----------- | --------------------------- | ------------------------------------------------------------------------------------ |
+| dev         | `atlas-dev-db-admins` (you) | `scripts/db-access.sh dev`, then `psql` as `atlas-dev-db-admins` with an Entra token |
+| uat, prod   | nobody                      | reviewed migrations, emergencies included (`database-access.md`)                     |
 
 ## 12. Governance and cost
 
@@ -695,8 +711,8 @@ missing from that list.
 | Container Apps: dev/uat (scale to zero)                    | ~$0, within the free allowance                               |
 | ACR Basic (shared)                                         | ~$5                                                          |
 | Log Analytics / App Insights (first 5 GB/month free)       | ~$0–3                                                        |
-| Private DNS zones ×2, availability tests, alert rules      | ~$3                                                          |
-| **Total**                                                  | **~$70** (budget alerts at $50 / $80 / $100)                 |
+| Private DNS zones ×2, availability test, alert rules       | ~$9                                                          |
+| **Total**                                                  | **~$76** (budget alerts at $50 / $80 / $100)                 |
 
 ## 13. Quality gates (local)
 
@@ -864,6 +880,8 @@ one approval per environment. Its steps:
 | `AZURE_CLIENT_ID`                                       | the client ID of the API's (or migrator's) managed identity                        |
 | `API_PRINCIPAL_ID`, `API_ROLE_NAME`                     | migration job only: the runtime role to ensure                                     |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING`                 | from `appi-atlas-{env}`                                                            |
+| `OTEL_SERVICE_NAME`                                     | `atlas-api`: the App Insights cloud role name                                      |
+| `OTEL_RESOURCE_ATTRIBUTES`                              | `service.version=<git SHA>`                                                        |
 
 **Web (container environment variables, rendered into `/config.json`):**
 

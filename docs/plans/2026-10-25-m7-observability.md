@@ -109,19 +109,19 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
 
 ### Task 0: Branch
 
-- [ ] `git switch -c feat/m7-observability main`
+- [x] `git switch -c feat/m7-observability main`
 
 ### Task 1: Audit rows carry the trace ID
 
 **Files:** `apps/api/src/logging.ts`, `logging.test.ts`, `audit/audit.repository.ts`, `notes/notes.service.ts`, `notes/notes.routes.ts`, `notes/notes.service.test.ts`, `notes/notes.service.int.test.ts`, `apps/api/package.json`
 
-- [ ] **Step 1: Add `@opentelemetry/api`.** It's the API only: with no SDK started, every call is a cheap no-op.
+- [x] **Step 1: Add `@opentelemetry/api`.** It's the API only: with no SDK started, every call is a cheap no-op.
 
   ```bash
   npm install -w @atlas/api @opentelemetry/api@^1.10.0
   ```
 
-- [ ] **Step 2: Write the failing test.** In `apps/api/src/logging.test.ts`:
+- [x] **Step 2: Write the failing test.** In `apps/api/src/logging.test.ts`:
   - add `import { ROOT_CONTEXT, TraceFlags, trace } from '@opentelemetry/api';` to the imports
   - add `traceIdOf` to the `./logging.js` import
   - then append:
@@ -144,9 +144,9 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   });
   ```
 
-- [ ] **Step 3: Run it.** `(cd apps/api && npx vitest run src/logging.test.ts)`. Expected: FAIL, because `traceIdOf` isn't exported.
+- [x] **Step 3: Run it.** `(cd apps/api && npx vitest run src/logging.test.ts)`. Expected: FAIL, because `traceIdOf` isn't exported.
 
-- [ ] **Step 4: Implement it in `apps/api/src/logging.ts`.** Add the import, then this after `requestIdOf`:
+- [x] **Step 4: Implement it in `apps/api/src/logging.ts`.** Add the import, then this after `requestIdOf`:
 
   ```ts
   import { context, isSpanContextValid, trace, type Context } from '@opentelemetry/api';
@@ -163,9 +163,9 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   }
   ```
 
-- [ ] **Step 5: Run it again.** Expected: PASS.
+- [x] **Step 5: Run it again.** Expected: PASS.
 
-- [ ] **Step 6: Expect the trace ID in the service tests.** In `notes.service.test.ts`, give the actors trace IDs (one real, one null):
+- [x] **Step 6: Expect the trace ID in the service tests.** In `notes.service.test.ts`, give the actors trace IDs (one real, one null):
 
   ```ts
   const alice: Actor = {
@@ -207,9 +207,9 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   ]);
   ```
 
-- [ ] **Step 7: Run them.** `npm run typecheck` fails: `Actor` has no `traceId`.
+- [x] **Step 7: Run them.** `npm run typecheck` fails: `Actor` has no `traceId`.
 
-- [ ] **Step 8: Implement it.**
+- [x] **Step 8: Implement it.**
   - In `notes.service.ts`, `Actor` gains `traceId: string | null;` (doc comment unchanged), and both `audit.record` calls gain `traceId: actor.traceId,` after `requestId`.
   - In `audit.repository.ts`, `AuditEvent` gains `traceId?: string | null;`, and the insert gains `traceId: event.traceId ?? null,`.
   - In `notes.routes.ts`, import `traceIdOf` with `requestIdOf`, and:
@@ -222,18 +222,18 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
 
   The route handler calls `actorOf` before its first `await`, so the active context is still the request's.
 
-- [ ] **Step 9: Run the tests.**
+- [x] **Step 9: Run the tests.**
   - `(cd apps/api && npx vitest run src/notes/notes.service.test.ts)`: PASS.
   - With Docker running, `(cd apps/api && npx vitest run --config vitest.integration.config.ts src/notes/notes.service.int.test.ts)`: PASS.
   - `npm run typecheck`: clean.
 
-- [ ] **Step 10: The user commits.** `git add apps/api package-lock.json && git commit -m "feat(api): record the trace id in audit rows"`
+- [x] **Step 10: The user commits.** `git add apps/api package-lock.json && git commit -m "feat(api): record the trace id in audit rows"`
 
 ### Task 2: API telemetry
 
 **Files:** create `apps/api/src/telemetry.ts` and `telemetry.test.ts`; modify `apps/api/Dockerfile`, `apps/api/package.json` and `.github/dependabot.yml`.
 
-- [ ] **Step 1: Add the packages.** The two instrumentation versions match what `@azure/monitor-opentelemetry` 1.20.1 depends on.
+- [x] **Step 1: Add the packages.** The two instrumentation versions match what `@azure/monitor-opentelemetry` 1.20.1 depends on.
 
   ```bash
   npm install -w @atlas/api @azure/monitor-opentelemetry@^1.20.1 \
@@ -243,7 +243,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
 
   Expected: one version of each. Every other line says `deduped`. If npm shows two versions, stop: the ESM hook would only see one copy.
 
-- [ ] **Step 2: Write the failing test** `apps/api/src/telemetry.test.ts`:
+- [x] **Step 2: Write the failing test** `apps/api/src/telemetry.test.ts`:
 
   ```ts
   import { describe, expect, it } from 'vitest';
@@ -257,9 +257,9 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   });
   ```
 
-- [ ] **Step 3: Run it.** `(cd apps/api && npx vitest run src/telemetry.test.ts)`. Expected: FAIL, because `./telemetry.js` doesn't exist.
+- [x] **Step 3: Run it.** `(cd apps/api && npx vitest run src/telemetry.test.ts)`. Expected: FAIL, because `./telemetry.js` doesn't exist.
 
-- [ ] **Step 4: Write `apps/api/src/telemetry.ts`:**
+- [x] **Step 4: Write `apps/api/src/telemetry.ts`:**
 
   ```ts
   import type { IncomingMessage } from 'node:http';
@@ -304,9 +304,9 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   startTelemetry(process.env);
   ```
 
-- [ ] **Step 5: Run the tests.** The telemetry test passes, then `npm test -w @atlas/api` passes, with coverage still above 80%.
+- [x] **Step 5: Run the tests.** The telemetry test passes, then `npm test -w @atlas/api` passes, with coverage still above 80%.
 
-- [ ] **Step 6: Load it first in the image.** Replace the last line of `apps/api/Dockerfile`:
+- [x] **Step 6: Load it first in the image.** Replace the last line of `apps/api/Dockerfile`:
 
   ```dockerfile
   # Telemetry first (spec §11.1): the loader lets OpenTelemetry patch ES modules, and telemetry.js
@@ -315,7 +315,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   CMD ["node", "--import", "@azure/monitor-opentelemetry/loader", "--import", "./apps/api/dist/telemetry.js", "apps/api/dist/server.js"]
   ```
 
-- [ ] **Step 7: Hold the instrumentation versions.** In `.github/dependabot.yml`, under the npm entry's `ignore:`:
+- [x] **Step 7: Hold the instrumentation versions.** In `.github/dependabot.yml`, under the npm entry's `ignore:`:
 
   ```yaml
   # Must match the versions @azure/monitor-opentelemetry depends on. A second copy means a second
@@ -326,7 +326,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
     update-types: ['version-update:semver-minor', 'version-update:semver-major']
   ```
 
-- [ ] **Step 8: Check that the image starts with telemetry on.** The user runs these in their own terminal:
+- [x] **Step 8: Check that the image starts with telemetry on.** The user runs these in their own terminal:
 
   ```bash
   docker compose --profile full up -d --build --wait
@@ -338,15 +338,15 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
 
   Then, in another terminal, `curl -s -o /dev/null -w '%{http_code}\n' localhost:3001/api/health/ready`. Expected: `200`. Stop the API with Ctrl-C.
 
-- [ ] **Step 9: The user commits.** `git add apps/api .github/dependabot.yml package-lock.json && git commit -m "feat(api): send telemetry to Application Insights"`
+- [x] **Step 9: The user commits.** `git add apps/api .github/dependabot.yml package-lock.json && git commit -m "feat(api): send telemetry to Application Insights"`
 
 ### Task 3: Web telemetry
 
 **Files:** create `apps/web/src/lib/telemetry.ts` and `telemetry.test.ts`; modify `apps/web/src/lib/config.ts`, `config.test.ts`, `main.tsx`, `vite.config.ts`, `config.example.json` and `apps/web/package.json`.
 
-- [ ] **Step 1: Add the SDK.** `npm install -w @atlas/web @microsoft/applicationinsights-web@^3.4.5`
+- [x] **Step 1: Add the SDK.** `npm install -w @atlas/web @microsoft/applicationinsights-web@^3.4.5`
 
-- [ ] **Step 2: Write the failing config tests.** In `apps/web/src/lib/config.test.ts`, inside `describe('RuntimeConfig')`:
+- [x] **Step 2: Write the failing config tests.** In `apps/web/src/lib/config.test.ts`, inside `describe('RuntimeConfig')`:
 
   ```ts
   it('accepts an Application Insights connection string', () => {
@@ -363,9 +363,9 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   });
   ```
 
-- [ ] **Step 3: Run them.** `(cd apps/web && npx vitest run src/lib/config.test.ts)`. Expected: FAIL, because zod drops the unknown `telemetry` key.
+- [x] **Step 3: Run them.** `(cd apps/web && npx vitest run src/lib/config.test.ts)`. Expected: FAIL, because zod drops the unknown `telemetry` key.
 
-- [ ] **Step 4: Add it to the schema.** In `apps/web/src/lib/config.ts`, after `auth: AuthSettings,` inside `RuntimeConfig`'s object:
+- [x] **Step 4: Add it to the schema.** In `apps/web/src/lib/config.ts`, after `auth: AuthSettings,` inside `RuntimeConfig`'s object:
 
   ```ts
   /** Application Insights, for the browser SDK. Empty or missing: no telemetry is sent. */
@@ -374,9 +374,9 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
 
   In `apps/web/config.example.json`, add `"telemetry": { "connectionString": "" }` after `auth`.
 
-- [ ] **Step 5: Run them again.** Expected: PASS.
+- [x] **Step 5: Run them again.** Expected: PASS.
 
-- [ ] **Step 6: Write the failing telemetry tests** `apps/web/src/lib/telemetry.test.ts`:
+- [x] **Step 6: Write the failing telemetry tests** `apps/web/src/lib/telemetry.test.ts`:
 
   ```ts
   import type { ITelemetryItem } from '@microsoft/applicationinsights-web';
@@ -401,9 +401,9 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
 
   Sending telemetry for real is the E2E test's job (Task 5): jsdom can't show what Chromium does with the CSP.
 
-- [ ] **Step 7: Run them.** Expected: FAIL, because `./telemetry` doesn't exist.
+- [x] **Step 7: Run them.** Expected: FAIL, because `./telemetry` doesn't exist.
 
-- [ ] **Step 8: Write `apps/web/src/lib/telemetry.ts`:**
+- [x] **Step 8: Write `apps/web/src/lib/telemetry.ts`:**
 
   ```ts
   import {
@@ -444,9 +444,9 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   }
   ```
 
-- [ ] **Step 9: Run them again.** Expected: PASS.
+- [x] **Step 9: Run them again.** Expected: PASS.
 
-- [ ] **Step 10: Start it in `main.tsx`.** Import `startTelemetry` from `@/lib/telemetry`, and in the `try` block:
+- [x] **Step 10: Start it in `main.tsx`.** Import `startTelemetry` from `@/lib/telemetry`, and in the `try` block:
 
   ```tsx
   const config = await loadRuntimeConfig();
@@ -456,21 +456,21 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   root.render(
   ```
 
-- [ ] **Step 11: Give the SDK its own chunk.** In `apps/web/vite.config.ts`, add this group before `vendor`:
+- [x] **Step 11: Give the SDK its own chunk.** In `apps/web/vite.config.ts`, add this group before `vendor`:
 
   ```ts
   { name: 'telemetry', test: /node_modules[\\/](@microsoft|@nevware21)[\\/]/ },
   ```
 
-- [ ] **Step 12: Check the web workspace.** `npm test -w @atlas/web` and `npm run build -w @atlas/web`. Expected: both pass, and the build lists a `telemetry-*.js` chunk.
+- [x] **Step 12: Check the web workspace.** `npm test -w @atlas/web` and `npm run build -w @atlas/web`. Expected: both pass, and the build lists a `telemetry-*.js` chunk.
 
-- [ ] **Step 13: The user commits.** `git add apps/web package-lock.json && git commit -m "feat(web): send browser telemetry to Application Insights"`
+- [x] **Step 13: The user commits.** `git add apps/web package-lock.json && git commit -m "feat(web): send browser telemetry to Application Insights"`
 
 ### Task 4: nginx serves the connection string and allows its origin
 
 **Files:** `apps/web/nginx/19-atlas-env.envsh`, `default.conf.template`, `security-headers.conf.template`, `apps/web/Dockerfile`
 
-- [ ] **Step 1: Validate the connection string and derive its origin.** Append to `19-atlas-env.envsh`:
+- [x] **Step 1: Validate the connection string and derive its origin.** Append to `19-atlas-env.envsh`:
 
   ```sh
   # Optional: without it (locally) the app sends no telemetry. It's written into JSON and into the
@@ -493,33 +493,33 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   export TELEMETRY_ORIGIN
   ```
 
-- [ ] **Step 2: Put it in `/config.json`.** In `default.conf.template`, the `return 200` line becomes:
+- [x] **Step 2: Put it in `/config.json`.** In `default.conf.template`, the `return 200` line becomes:
 
   ```nginx
   return 200 '{"env":"${ATLAS_ENV}","auth":{"kind":"${AUTH_KIND}","authority":"${AUTH_AUTHORITY}","clientId":"${AUTH_CLIENT_ID}","apiScope":"${AUTH_API_SCOPE}"},"telemetry":{"connectionString":"${APPLICATIONINSIGHTS_CONNECTION_STRING}"}}';
   ```
 
-- [ ] **Step 3: Allow the origin in the CSP.** In `security-headers.conf.template`, `connect-src 'self' ${AUTH_ORIGIN};` becomes `connect-src 'self' ${AUTH_ORIGIN} ${TELEMETRY_ORIGIN};`, and the comment above it gains:
+- [x] **Step 3: Allow the origin in the CSP.** In `security-headers.conf.template`, `connect-src 'self' ${AUTH_ORIGIN};` becomes `connect-src 'self' ${AUTH_ORIGIN} ${TELEMETRY_ORIGIN};`, and the comment above it gains:
 
   ```nginx
   # connect-src includes Application Insights' ingestion origin, from the connection string.
   ```
 
-- [ ] **Step 4: Let envsubst substitute both.** In `apps/web/Dockerfile`:
+- [x] **Step 4: Let envsubst substitute both.** In `apps/web/Dockerfile`:
 
   ```dockerfile
   ENV NGINX_ENVSUBST_FILTER="^(ATLAS_ENV|AUTH_[A-Z_]+|API_UPSTREAM|APPLICATIONINSIGHTS_CONNECTION_STRING|TELEMETRY_ORIGIN)$"
   ```
 
-- [ ] **Step 5: Lint.** `npm run lint`. shellcheck covers the `.envsh` file.
+- [x] **Step 5: Lint.** `npm run lint`. shellcheck covers the `.envsh` file.
 
-- [ ] **Step 6: The user commits.** `git add apps/web && git commit -m "feat(web): serve the telemetry connection string and allow it in the CSP"`
+- [x] **Step 6: The user commits.** `git add apps/web && git commit -m "feat(web): serve the telemetry connection string and allow it in the CSP"`
 
 ### Task 5: E2E: the browser sends telemetry and traces its API calls
 
 **Files:** `compose.yaml`; create `tests/e2e/src/telemetry.spec.ts`.
 
-- [ ] **Step 1: Give the compose web app a fake connection string.** Under `web:` → `environment:`:
+- [x] **Step 1: Give the compose web app a fake connection string.** Under `web:` → `environment:`:
 
   ```yaml
   # A fake Application Insights, so the E2E tests see the browser SDK run under the real CSP.
@@ -528,7 +528,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   APPLICATIONINSIGHTS_CONNECTION_STRING: 'InstrumentationKey=00000000-0000-4000-8000-000000000000;IngestionEndpoint=http://localhost:8091/'
   ```
 
-- [ ] **Step 2: Write the test** `tests/e2e/src/telemetry.spec.ts`:
+- [x] **Step 2: Write the test** `tests/e2e/src/telemetry.spec.ts`:
 
   ```ts
   import { expect, signIn, test } from './fixtures.js';
@@ -556,7 +556,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   });
   ```
 
-- [ ] **Step 3: Run the full E2E suite.** The user runs:
+- [x] **Step 3: Run the full E2E suite.** The user runs:
 
   ```bash
   docker compose --profile full up -d --build --wait
@@ -567,18 +567,18 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   - A CSP violation for `localhost:8091`: `TELEMETRY_ORIGIN` wasn't rendered. Check the filter (Task 4, Step 4).
   - A violation for any other Microsoft host: turn that SDK feature off, rather than widen the CSP.
 
-- [ ] **Step 4: The user commits.** `git add compose.yaml tests/e2e && git commit -m "test(e2e): browser telemetry and trace propagation"`
+- [x] **Step 4: The user commits.** `git add compose.yaml tests/e2e && git commit -m "test(e2e): browser telemetry and trace propagation"`
 
 ### Task 6: Per-stage telemetry in Azure
 
 **Files:** `infra/config/environments.json`, `infra/platform.bicep`, `infra/apps.bicep`, `scripts/smoke-test.sh`
 
-- [ ] **Step 1: Add the settings.** In `environments.json`, add to each environment, after `localhostRedirect`:
+- [x] **Step 1: Add the settings.** In `environments.json`, add to each environment, after `localhostRedirect`:
   - dev: `"logRetentionDays": 30, "alerts": false`
   - uat: `"logRetentionDays": 30, "alerts": false`
   - prod: `"logRetentionDays": 30, "alerts": true`
 
-- [ ] **Step 2: Add the workspace, App Insights and Postgres logs to `platform.bicep`.** Append:
+- [x] **Step 2: Add the workspace, App Insights and Postgres logs to `platform.bicep`.** Append:
 
   ```bicep
   // ---- Telemetry (spec §11.1): this stage's Application Insights and Postgres logs ----
@@ -621,7 +621,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   }
   ```
 
-- [ ] **Step 3: Give both apps the connection string.** In `apps.bicep`, after the `registry` resource:
+- [x] **Step 3: Give both apps the connection string.** In `apps.bicep`, after the `registry` resource:
 
   ```bicep
   resource appInsights 'Microsoft.Insights/components@2020-02-02' existing = {
@@ -644,7 +644,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsights.properties.ConnectionString }
   ```
 
-- [ ] **Step 4: Smoke-test the connection string.** In `scripts/smoke-test.sh`, after the `/config.json` check:
+- [x] **Step 4: Smoke-test the connection string.** In `scripts/smoke-test.sh`, after the `/config.json` check:
 
   ```bash
   check "/config.json has an Application Insights connection string" \
@@ -653,15 +653,15 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
 
   `field_is` prints nothing but `ok:`, so the connection string never reaches the public log.
 
-- [ ] **Step 5: Build and lint.** `for t in infra/*.bicep infra/modules/*.bicep; do az bicep build --file "$t" --stdout > /dev/null; done`. Expected: no errors. If `use-recent-api-versions` warns, take the newest GA version it suggests.
+- [x] **Step 5: Build and lint.** `for t in infra/*.bicep infra/modules/*.bicep; do az bicep build --file "$t" --stdout > /dev/null; done`. Expected: no errors. If `use-recent-api-versions` warns, take the newest GA version it suggests.
 
-- [ ] **Step 6: The user commits.** `git add infra scripts/smoke-test.sh && git commit -m "feat(infra): Application Insights and Postgres logs per stage"`
+- [x] **Step 6: The user commits.** `git add infra scripts/smoke-test.sh && git commit -m "feat(infra): Application Insights and Postgres logs per stage"`
 
 ### Task 7: Prod alerts
 
 **Files:** create `infra/modules/alerts.bicep`; modify `infra/apps.bicep`, `.github/workflows/deploy-env.yml`, `scripts/bootstrap.sh` and `scripts/what-if.sh`.
 
-- [ ] **Step 1: Write `infra/modules/alerts.bicep`:**
+- [x] **Step 1: Write `infra/modules/alerts.bicep`:**
 
   ```bicep
   // A stage's alerts (spec §11.2, prod only): an availability test of the public health check,
@@ -815,7 +815,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   }
   ```
 
-- [ ] **Step 2: Deploy it from `apps.bicep`.** Add a parameter after `apiClientId`:
+- [x] **Step 2: Deploy it from `apps.bicep`.** Add a parameter after `apiClientId`:
 
   ```bicep
   @description('Where alerts are emailed: the ALERT_EMAIL secret. Empty in stages without alerts.')
@@ -838,7 +838,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   }
   ```
 
-- [ ] **Step 3: Pass the email in `deploy-env.yml`.** After the "Find the resource group" step:
+- [x] **Step 3: Pass the email in `deploy-env.yml`.** After the "Find the resource group" step:
 
   ```yaml
   # A stage with alerts needs somewhere to send them (bootstrap.sh sets ALERT_EMAIL). Checked
@@ -857,7 +857,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   - In the Apps step, add `ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}` to its `env`, and `alertEmail="$ALERT_EMAIL"` to its `--parameters`.
   - Fix the migration error message, since container logs were never in a stage workspace: `Its logs are in log-atlas-shared (ContainerAppConsoleLogs, where JobName is $job).`
 
-- [ ] **Step 4: Set `ALERT_EMAIL` in `bootstrap.sh`.** Add a helper before `ensure_budget`, and use it there:
+- [x] **Step 4: Set `ALERT_EMAIL` in `bootstrap.sh`.** Add a helper before `ensure_budget`, and use it there:
 
   ```bash
   # The signed-in user's email: budget and alert notifications go there.
@@ -879,7 +879,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   fi
   ```
 
-- [ ] **Step 5: Redact email addresses in `what-if.sh`.** The action group's address would otherwise appear in the public job summary.
+- [x] **Step 5: Redact email addresses in `what-if.sh`.** The action group's address would otherwise appear in the public job summary.
 
   ```bash
   EMAIL='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
@@ -893,15 +893,15 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
 
   Check it: `printf 'emailAddress: "a.b@example.com" id 00000000-0000-4000-8000-000000000000\n' | sed -E "s/$GUID/<redacted>/g; s/$EMAIL/<redacted>/g"`, with both variables set as in the script. Expected: `emailAddress: "<redacted>" id <redacted>`.
 
-- [ ] **Step 6: Lint.** Run the Bicep build loop from Task 6, then `npm run lint` (actionlint and shellcheck).
+- [x] **Step 6: Lint.** Run the Bicep build loop from Task 6, then `npm run lint` (actionlint and shellcheck).
 
-- [ ] **Step 7: The user commits.** `git add infra .github/workflows/deploy-env.yml scripts && git commit -m "feat(infra): prod alerts and availability test"`
+- [x] **Step 7: The user commits.** `git add infra .github/workflows/deploy-env.yml scripts && git commit -m "feat(infra): prod alerts and availability test"`
 
 ### Task 8: `db-access.sh` and the runbooks
 
 **Files:** create `scripts/db-access.sh`, `docs/runbooks/rollback.md`, `add-environment.md` and `database-access.md`.
 
-- [ ] **Step 1: Write `scripts/db-access.sh`** (`chmod +x`):
+- [x] **Step 1: Write `scripts/db-access.sh`** (`chmod +x`):
 
   ```bash
   #!/usr/bin/env bash
@@ -945,7 +945,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   EOF
   ```
 
-- [ ] **Step 2: Write `docs/runbooks/rollback.md`:**
+- [x] **Step 2: Write `docs/runbooks/rollback.md`:**
 
   ```markdown
   # Roll back a deploy
@@ -983,7 +983,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
 
   (In the file, the commands inside numbered steps are indented fenced `bash` blocks. They're shown flat here so this plan's own code block stays readable.)
 
-- [ ] **Step 3: Write `docs/runbooks/add-environment.md`:**
+- [x] **Step 3: Write `docs/runbooks/add-environment.md`:**
 
   ```markdown
   # Add an environment
@@ -1013,7 +1013,7 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   `what-if.sh`, `teardown.sh` and the smoke tests read `environments.json`, so they need no change.
   ```
 
-- [ ] **Step 4: Write `docs/runbooks/database-access.md`:**
+- [x] **Step 4: Write `docs/runbooks/database-access.md`:**
 
   ```markdown
   # Database access
@@ -1050,15 +1050,15 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
 
   (Again, the commands under "Dev" are a fenced `bash` block in the file.)
 
-- [ ] **Step 5: Lint.** `npm run lint` (shellcheck and Prettier).
+- [x] **Step 5: Lint.** `npm run lint` (shellcheck and Prettier).
 
-- [ ] **Step 6: The user commits.** `git add scripts/db-access.sh docs/runbooks && git commit -m "docs: runbooks and db-access.sh"`
+- [x] **Step 6: The user commits.** `git add scripts/db-access.sh docs/runbooks && git commit -m "docs: runbooks and db-access.sh"`
 
 ### Task 9: Docs
 
 **Files:** `docs/specs/2026-10-13-atlas-scaffold-design.md`, `docs/adr/0016-…`, `docs/adr/0017-…`, `AGENTS.md`, `README.md`
 
-- [ ] **Step 1: Spec §11.1–11.4.** Replace them with the following.
+- [x] **Step 1: Spec §11.1–11.4.** Replace them with the following.
 
   **§11.1 Telemetry:**
   - **One workspace-based Application Insights per environment,** `appi-atlas-{env}`. It sits in `log-atlas-{env}`, a Log Analytics workspace in the stage's own resource group.
@@ -1087,18 +1087,18 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
   - dev: "`scripts/db-access.sh dev`, then `psql` as `atlas-dev-db-admins` with an Entra token"
   - uat, prod: "nobody: reviewed migrations, emergencies included (`database-access.md`)"
 
-- [ ] **Step 2: The rest of the spec.**
+- [x] **Step 2: The rest of the spec.**
   - **§4.1 diagram, last-but-one line:** `telemetry ─► appi-atlas-{env} ─► log-atlas-{env} ◄─ Postgres logs   (container logs: log-atlas-shared)`
   - **§12 cost table:**
     - The row becomes `| Private DNS zones ×2, availability test, alert rules | ~$9 |`.
     - The total becomes `**~$76**`.
   - **§16 API table:** add `OTEL_SERVICE_NAME` (`atlas-api`, the App Insights cloud role name) and `OTEL_RESOURCE_ATTRIBUTES` (`service.version=<git SHA>`).
 
-- [ ] **Step 3: ADRs.** Amend the consequence lines; nothing new needs deciding:
+- [x] **Step 3: ADRs.** Amend the consequence lines; nothing new needs deciding:
   - In 0017: "Per-stage telemetry (Application Insights) comes with M7" becomes "Each stage's Application Insights and Postgres logs go to its own `log-atlas-{env}` (M7)".
   - In 0016: "Application Insights (M7) adds its ingestion origin to `connect-src`" becomes "Application Insights adds its ingestion origin to `connect-src`. nginx derives it from the connection string at start (M7)".
 
-- [ ] **Step 4: `AGENTS.md`.**
+- [x] **Step 4: `AGENTS.md`.**
   - **API layout table:**
     - Add a row: `src/telemetry.ts` | OpenTelemetry → Application Insights. Loaded first with `node --import` (Dockerfile); off without `APPLICATIONINSIGHTS_CONNECTION_STRING`.
     - The `src/logging.ts` row gains "`traceIdOf` (the trace ID for audit rows)".
@@ -1126,11 +1126,11 @@ Unit tests for one file: `(cd apps/api && npx vitest run src/<file>)` or `(cd ap
     - **Runbooks:** `docs/runbooks/`: rollback, adding an environment, database access.
     ```
 
-- [ ] **Step 5: `README.md`.** In "Docs", add `- [Runbooks](docs/runbooks/): rollback, adding an environment, database access` after the ADRs line.
+- [x] **Step 5: `README.md`.** In "Docs", add `- [Runbooks](docs/runbooks/): rollback, adding an environment, database access` after the ADRs line.
 
-- [ ] **Step 6: Check.** `npm run format`, then `npm run check`. Expected: green. It needs Docker for the integration tests.
+- [x] **Step 6: Check.** `npm run format`, then `npm run check`. Expected: green. It needs Docker for the integration tests.
 
-- [ ] **Step 7: The user commits.** `git add docs AGENTS.md README.md && git commit -m "docs: observability as built"`
+- [x] **Step 7: The user commits.** `git add docs AGENTS.md README.md && git commit -m "docs: observability as built"`
 
 ### Task 10: Before the pull request
 
@@ -1239,3 +1239,16 @@ Only dev has human database access. In UAT and prod, the check is that App Insig
 
 - [ ] **Step 1:** Tick the boxes. Add execution notes (timings, surprises, the alert's real detection time, the outcome of the psql permission check) and the deploy run IDs, as in M6. Open a `docs(plan): record how M7 went` PR.
 - [ ] **Step 2:** Update memory: M7 done, the new monthly cost, and that `teardown.sh all` is due before mid-November.
+
+## Execution notes
+
+1. **#22's per-environment locks weren't tested by the plan's merge (#23).** #22's own run never waited at UAT, because its dev deploy had failed. `platform.bicep` got `ServerIsBusy`: the dev Postgres server was busy with an operation that isn't in the activity log. It was `Ready` again an hour later, and #23's run deployed dev without trouble. The lock test moves to this PR's merge, with #23's run waiting at UAT.
+2. **The plan's integration test command was wrong.** It needs `--config vitest.integration.config.ts`. Fixed in Task 1.
+3. **One `@opentelemetry/instrumentation` for everything that matters.** Express, HTTP, pg and Azure Monitor all share 0.221.0. Two nested copies are outside our control:
+   - Azure's own `@azure/opentelemetry-instrumentation-azure-sdk` (1.1.0-beta.1) nests 0.211. At worst, that means fewer spans for Azure SDK calls, such as the identity token fetches.
+   - `instrumentation-http` pins its own `@opentelemetry/core` 2.10. That's harmless.
+4. **Azure Monitor 1.20 samples by rate by default:** up to 5 traces a second, with a budget that starts empty. The first span after startup isn't recorded, so the first check with a fake connection string said `recording: false`; a span 1.5 seconds later was recorded. At Atlas's traffic every trace is kept. Above 5 a second, some audit rows' trace IDs wouldn't be in App Insights. This is now noted in the spec and AGENTS.md.
+5. **The API image with telemetry on** served `200` on `/api/health/ready` and `401` on `/api/notes`, sending to a closed port, with no exporter errors in its log.
+6. **The E2E telemetry test takes 0.6 seconds, not 15.** The SDK also sends its batch when the page unloads, which it does as sign-in redirects to the mock issuer. All 5 E2E tests passed, with no CSP violations.
+7. **The browser SDK is 77 KB gzipped** (the `telemetry` chunk), about the same as Fluent's. Accepted for an internal app; lazy loading would only help locally, where telemetry is off.
+8. **The Bicep linter suggested newer GA API versions:** `metricAlerts@2026-01-01` and `scheduledQueryRules@2026-03-01`. Both are used, and every template builds without warnings.

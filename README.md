@@ -65,6 +65,7 @@ curl -s localhost:3000/api/users/me -H "Authorization: Bearer $TOKEN"
 - [AGENTS.md](AGENTS.md): how to work in this repo (for people and AI agents)
 - [Design spec](docs/specs/2026-10-13-atlas-scaffold-design.md)
 - [Architecture decision records](docs/adr/)
+- [Runbooks](docs/runbooks/): rollback, adding an environment, database access
 - [Security policy](SECURITY.md)
 
 ## License
