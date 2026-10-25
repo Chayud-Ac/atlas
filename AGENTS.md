@@ -160,6 +160,7 @@ Three environments (dev, uat, prod), all in `japaneast` on an Azure for Students
 - **Changes reach Azure only through `deploy.yml`.**
   - A merge to `main` runs CI, deploys the registry, builds both images once (tagged with the commit SHA), and deploys that SHA to dev.
   - Then **the same SHA** goes to UAT, then prod. Each waits for an approval in GitHub, because their environments require a reviewer.
+  - Each environment has its own deploy lock, so a run waiting for approval doesn't stop a later merge reaching dev. A later run's UAT deploy queues behind it: reject the stale approval to let the newest through.
   - Every environment's deploy ends with smoke tests that check the deployed version.
   - A prod deploy ends with a GitHub Release, `prod-<date>-<sha>`.
   - To roll back, run `deploy.yml` by hand with an older `sha`.

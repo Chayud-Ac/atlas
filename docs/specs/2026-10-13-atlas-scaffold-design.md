@@ -125,10 +125,11 @@ deploy-env.yml (ONE job, so ONE approval per environment):
 - **Rollback** is a `workflow_dispatch` of `deploy.yml` with an older SHA.
   That skips the build and promotes an image that already exists. See
   `docs/runbooks/rollback.md`.
-- **Concurrency.** `deploy.yml` uses group `deploy` with
-  `cancel-in-progress: false`. While one run waits for approval, the newest
-  later run waits behind it. GitHub keeps only one pending run, so
-  intermediate runs are superseded and the latest merge wins.
+- **Concurrency.** One lock per deploy target, not per run: the `shared`
+  job uses group `deploy-shared`, and each environment's deploy uses
+  `deploy-<env>`, all with `cancel-in-progress: false`. A run waiting for
+  UAT approval doesn't stop a later merge reaching dev. For each target,
+  GitHub keeps only the newest waiting job, so the latest merge wins.
 - **Branching.** Trunk-based. Environments are deployment targets, not
   branches. There are no `develop` or `release` branches.
 
