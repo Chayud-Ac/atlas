@@ -48,6 +48,19 @@ describe('RuntimeConfig', () => {
     const config = { ...msalConfig, auth: { ...msalConfig.auth, clientId: '' } };
     expect(RuntimeConfig.safeParse(config).success).toBe(false);
   });
+
+  it('accepts an Application Insights connection string', () => {
+    const config = {
+      ...msalConfig,
+      telemetry: { connectionString: 'InstrumentationKey=k;IngestionEndpoint=https://in.example/' },
+    };
+    expect(RuntimeConfig.parse(config)).toEqual(config);
+  });
+
+  it('accepts an empty connection string: telemetry is off', () => {
+    const config = { ...mockConfig, telemetry: { connectionString: '' } };
+    expect(RuntimeConfig.parse(config)).toEqual(config);
+  });
 });
 
 describe('loadRuntimeConfig', () => {

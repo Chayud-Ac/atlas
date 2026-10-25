@@ -27,7 +27,9 @@
       "requiresApproval": false,
       "deleteLock": false,
       "humanDbAccess": true,
-      "localhostRedirect": true
+      "localhostRedirect": true,
+      "logRetentionDays": 30,
+      "alerts": false
     },
     "uat": {
       "location": "japaneast",
@@ -37,7 +39,9 @@
       "requiresApproval": true,
       "deleteLock": false,
       "humanDbAccess": false,
-      "localhostRedirect": false
+      "localhostRedirect": false,
+      "logRetentionDays": 30,
+      "alerts": false
     },
     "prod": {
       "location": "japaneast",
@@ -47,7 +51,9 @@
       "requiresApproval": true,
       "deleteLock": true,
       "humanDbAccess": false,
-      "localhostRedirect": false
+      "localhostRedirect": false,
+      "logRetentionDays": 30,
+      "alerts": true
     }
   }
 }

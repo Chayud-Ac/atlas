@@ -244,13 +244,20 @@ ensure_policies() {
     --params '{"tagName": {"value": "env"}}' --output none
 }
 
+# The signed-in user's email: budget and alert notifications go there.
+signed_in_email() {
+  local email
+  email="$(az ad signed-in-user show --query mail --output tsv)"
+  if [[ -z "$email" ]]; then email="$(az ad signed-in-user show --query userPrincipalName --output tsv)"; fi
+  printf '%s' "$email"
+}
+
 # $100 a month, emailing the signed-in user at 50/80/100% actual and 100% forecast (spec §12).
 ensure_budget() {
   local url email body
   url="https://management.azure.com/subscriptions/$SUBSCRIPTION_ID/providers/Microsoft.Consumption/budgets/budget-atlas?api-version=2023-05-01"
   if az rest --method get --url "$url" --output none 2>/dev/null; then return 0; fi
-  email="$(az ad signed-in-user show --query mail --output tsv)"
-  if [[ -z "$email" ]]; then email="$(az ad signed-in-user show --query userPrincipalName --output tsv)"; fi
+  email="$(signed_in_email)"
   body="$(jq -n --arg email "$email" --arg start "$(date -u +%Y-%m-01)T00:00:00Z" '
     def alert($threshold; $type): {enabled: true, operator: "GreaterThanOrEqualTo",
       threshold: $threshold, thresholdType: $type, contactEmails: [$email]};
@@ -485,6 +492,10 @@ bootstrap_environment() {
   set_secret ENTRA_API_CLIENT_ID "$api" "$env"
   set_secret DB_ADMIN_GROUP_OBJECT_ID "$group" "$env"
   set_variable DB_ADMIN_GROUP_NAME "$group_name" "$env"
+  # A secret, not a variable: GitHub masks it in the public logs, as it does IDs (ADR 0004).
+  if [[ "$(cfg ".environments[\"$env\"].alerts")" == "true" ]]; then
+    set_secret ALERT_EMAIL "$(signed_in_email)" "$env"
+  fi
 
   log "Done: $env. After its first deploy, run scripts/add-redirect-uri.sh $env"
 }

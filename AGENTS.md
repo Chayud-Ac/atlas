@@ -89,32 +89,33 @@ Run these from the repo root.
 
 API layout (`apps/api/`):
 
-| Path                              | Holds                                                                                                           |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `src/app.ts`                      | Middleware order, rate limits, router mounting                                                                  |
-| `src/server.ts`, `src/migrate.ts` | The two entrypoints (API, migration job)                                                                        |
-| `Dockerfile`                      | Production image: runs the API; the migration job runs it with `node apps/api/dist/migrate.js`                  |
-| `src/config.ts`                   | Environment validation, including the issuer guard                                                              |
-| `src/logging.ts`                  | pino logger with redaction, request ids, `httpLogger` (one lean line per request)                               |
-| `src/errors.ts`                   | `NotFoundError`, `HttpError`, `parseOrThrow`, problem+json error handler                                        |
-| `src/auth/`                       | `tokens.ts` (claims, verifier, OIDC discovery), `authenticate.ts` (middleware, `authOf`)                        |
-| `src/db/`                         | `schema.ts` (tables), `database.ts` (pool, Entra tokens, unit of work), `migrations.ts` (grants, migration job) |
-| `src/<feature>/`                  | `users/`, `notes/`, `audit/`, `health/`                                                                         |
+| Path                              | Holds                                                                                                                                     |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/app.ts`                      | Middleware order, rate limits, router mounting                                                                                            |
+| `src/server.ts`, `src/migrate.ts` | The two entrypoints (API, migration job)                                                                                                  |
+| `Dockerfile`                      | Production image: runs the API, with telemetry loaded first; the migration job runs it with `node apps/api/dist/migrate.js`               |
+| `src/config.ts`                   | Environment validation, including the issuer guard                                                                                        |
+| `src/logging.ts`                  | pino logger with redaction, request ids, `httpLogger` (one lean line per request), `traceIdOf` (the trace ID for audit rows)              |
+| `src/telemetry.ts`                | OpenTelemetry → Application Insights. Loaded first with `node --import` (Dockerfile); off without `APPLICATIONINSIGHTS_CONNECTION_STRING` |
+| `src/errors.ts`                   | `NotFoundError`, `HttpError`, `parseOrThrow`, problem+json error handler                                                                  |
+| `src/auth/`                       | `tokens.ts` (claims, verifier, OIDC discovery), `authenticate.ts` (middleware, `authOf`)                                                  |
+| `src/db/`                         | `schema.ts` (tables), `database.ts` (pool, Entra tokens, unit of work), `migrations.ts` (grants, migration job)                           |
+| `src/<feature>/`                  | `users/`, `notes/`, `audit/`, `health/`                                                                                                   |
 
 API code rules: `import { Pool } from 'pg'` (pg ships native ESM); routes never touch the database directly; services throw `NotFoundError`/`HttpError`, and the error handler turns them into problem+json. Never send a raw error message to a client.
 
 Web layout (`apps/web/src/`, Bulletproof React style, ADR 0015):
 
-| Path                  | Holds                                                                                                     |
-| --------------------- | --------------------------------------------------------------------------------------------------------- |
-| `main.tsx`            | Startup: load `/config.json` → create `Auth` → render. The only file without tests                        |
-| `app/`                | `app.tsx` (layout: header, signed-out prompt, page), `providers.tsx` (Fluent theme, TanStack Query, auth) |
-| `styles/global.css`   | The only global CSS: a small reset. Components style themselves with Fluent's `makeStyles` and tokens     |
-| `components/`         | Shared UI used by two or more features (`error-message.tsx`)                                              |
-| `features/<feature>/` | `api/` (TanStack Query hooks) and `components/` (UI) per feature: `users/`, `notes/`                      |
-| `lib/`                | Infrastructure without UI: `config.ts` (`/config.json`), `api-client.ts` (fetch wrapper), `auth/`         |
-| `lib/auth/`           | `auth-context.ts` (`Auth` interface, `useAuth`), `msal-auth.ts` (Entra ID), `mock-auth.ts` (local/ci)     |
-| `testing/`            | `setup.ts` (MSW lifecycle), `mock-api.ts` (fake API), `test-utils.tsx` (`fakeAuth`, `renderApp`)          |
+| Path                  | Holds                                                                                                                                                |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `main.tsx`            | Startup: load `/config.json` → create `Auth` → start telemetry → render. The only file without tests                                                 |
+| `app/`                | `app.tsx` (layout: header, signed-out prompt, page), `providers.tsx` (Fluent theme, TanStack Query, auth)                                            |
+| `styles/global.css`   | The only global CSS: a small reset. Components style themselves with Fluent's `makeStyles` and tokens                                                |
+| `components/`         | Shared UI used by two or more features (`error-message.tsx`)                                                                                         |
+| `features/<feature>/` | `api/` (TanStack Query hooks) and `components/` (UI) per feature: `users/`, `notes/`                                                                 |
+| `lib/`                | Infrastructure without UI: `config.ts` (`/config.json`), `api-client.ts` (fetch wrapper), `telemetry.ts` (Application Insights browser SDK), `auth/` |
+| `lib/auth/`           | `auth-context.ts` (`Auth` interface, `useAuth`), `msal-auth.ts` (Entra ID), `mock-auth.ts` (local/ci)                                                |
+| `testing/`            | `setup.ts` (MSW lifecycle), `mock-api.ts` (fake API), `test-utils.tsx` (`fakeAuth`, `renderApp`)                                                     |
 
 The web image is `apps/web/Dockerfile` plus `apps/web/nginx/`: nginx serves the build, proxies `/api/`, sets the security headers and CSP, and renders `/config.json` from environment variables at startup (ADR 0016).
 
@@ -148,14 +149,14 @@ npm run test:e2e                                     # HTML report: tests/e2e/pl
 
 Three environments (dev, uat, prod), all in `japaneast` on an Azure for Students subscription. The subscription allows **one Container Apps environment**, so `cae-atlas` lives in `rg-atlas-shared` and every stage runs its own apps in it (ADR 0017). Identities and the absence of credentials: ADR 0004. Networking (dev's Postgres is public, UAT and prod are private in the shared VNet): ADR 0008.
 
-| Path                             | Holds                                                                                                 |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `infra/config/environments.json` | Every per-environment setting (location, network, replicas, retention). Templates read only this file |
-| `infra/shared.bicep`             | What all stages share: the registry, the VNet, logs and the one Container Apps environment            |
-| `infra/platform.bicep`           | One stage's own resources: workload identities and Postgres (private in UAT and prod)                 |
-| `infra/migrate.bicep`            | The migration job (the API image with the migrate command)                                            |
-| `infra/apps.bicep`               | The API (internal ingress) and web (public) container apps                                            |
-| `infra/modules/`                 | Pieces deployed from those templates: AcrPull on the registry, the Postgres Entra admins              |
+| Path                             | Holds                                                                                                                                        |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `infra/config/environments.json` | Every per-environment setting (location, network, replicas, retention). Templates read only this file                                        |
+| `infra/shared.bicep`             | What all stages share: the registry, the VNet, logs and the one Container Apps environment                                                   |
+| `infra/platform.bicep`           | One stage's own resources: workload identities, Postgres (private in UAT and prod), and its telemetry: `log-atlas-{env}`, `appi-atlas-{env}` |
+| `infra/migrate.bicep`            | The migration job (the API image with the migrate command)                                                                                   |
+| `infra/apps.bicep`               | The API (internal ingress) and web (public) container apps, and prod's alerts                                                                |
+| `infra/modules/`                 | Pieces deployed from those templates: AcrPull on the registry, the Postgres Entra admins, prod's alerts                                      |
 
 - **Changes reach Azure only through `deploy.yml`.**
   - A merge to `main` runs CI, deploys the registry, builds both images once (tagged with the commit SHA), and deploys that SHA to dev.
@@ -169,9 +170,18 @@ Three environments (dev, uat, prod), all in `japaneast` on an Azure for Students
   - `what-if` writes a redacted preview of the Azure changes to the job summary.
 - **Templates find each other's resources by name** (`existing`), so no IDs pass between pipeline steps.
 - **These are run by a human, never the pipeline:**
-  - `scripts/bootstrap.sh shared|dev|uat|prod`: identities, roles, app registrations, groups, policies, budget, GitHub environments (with reviewers for UAT and prod), and prod's delete lock. Per-environment behaviour comes from flags in `environments.json` (`requiresApproval`, `deleteLock`, `humanDbAccess`, `localhostRedirect`)
+  - `scripts/bootstrap.sh shared|dev|uat|prod`: identities, roles, app registrations, groups, policies, budget, GitHub environments (with reviewers for UAT and prod), and prod's delete lock. Per-environment behaviour comes from flags in `environments.json` (`requiresApproval`, `deleteLock`, `humanDbAccess`, `localhostRedirect`, and `alerts`, which sets the `ALERT_EMAIL` secret)
   - `scripts/add-redirect-uri.sh <env>`: once, after an environment's first deploy
+  - `scripts/db-access.sh dev [--revoke]`: opens dev's Postgres firewall to your IP (`docs/runbooks/database-access.md`)
   - `scripts/teardown.sh <env>|all`: when you're done, so the credit stops being spent. It removes prod's lock first
+
+### Logs and telemetry
+
+- **Requests, SQL, page views, exceptions:** `appi-atlas-{env}`, stored in `log-atlas-{env}` (`AppRequests`, `AppDependencies`, `AppPageViews`, `AppExceptions`). Locally and in CI nothing is sent. The API keeps up to 5 traces a second (Azure Monitor's default sampling).
+- **An audit row's `trace_id` is App Insights' `OperationId`:** `union AppRequests, AppDependencies, AppPageViews | where OperationId == "<trace_id>"`.
+- **Container logs (pino's JSON lines) and job events:** `log-atlas-shared` (`ContainerAppConsoleLogs`, `ContainerAppSystemLogs`), all stages together. A job's lines carry `JobName`.
+- **Postgres's server log:** `log-atlas-{env}` (`AzureDiagnostics`).
+- **Runbooks:** `docs/runbooks/`: rollback, adding an environment, database access.
 
 ## Git and pull requests
 

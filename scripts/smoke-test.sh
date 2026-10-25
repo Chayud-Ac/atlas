@@ -30,6 +30,9 @@ field_is() { [[ "$(curl -sf --max-time 30 "$base$1" | jq -r "$2")" == "$3" ]]; }
 
 check "GET / returns 200" status_is / 200
 check "/config.json is for $env" field_is /config.json .env "$env"
+# Prints only ok/FAIL, so the connection string stays out of the public log.
+check "/config.json has an Application Insights connection string" \
+  field_is /config.json '.telemetry.connectionString != ""' true
 check "the API runs version $version" field_is /api/health/live .version "$version"
 check "the API is ready (it can reach Postgres)" status_is /api/health/ready 200
 check "GET /api/notes without a token returns 401" status_is /api/notes 401

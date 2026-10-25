@@ -19,6 +19,8 @@ export const RuntimeConfig = z
   .object({
     env: z.enum(['local', 'ci', 'dev', 'uat', 'prod']),
     auth: AuthSettings,
+    /** Application Insights, for the browser SDK. Empty or missing: no telemetry is sent. */
+    telemetry: z.object({ connectionString: z.string() }).optional(),
   })
   // Same idea as the API's issuer guard: the mock is for local and CI only.
   .refine((config) => config.auth.kind === 'msal' || ['local', 'ci'].includes(config.env), {

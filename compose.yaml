@@ -85,6 +85,10 @@ services:
       AUTH_CLIENT_ID: atlas-web
       AUTH_API_SCOPE: atlas-api/access_as_user
       API_UPSTREAM: api:3000
+      # A fake Application Insights, so the E2E tests see the browser SDK run under the real CSP.
+      # Nothing listens on 8091: telemetry.spec.ts answers for it. In manual testing, the browser
+      # console shows the failed sends.
+      APPLICATIONINSIGHTS_CONNECTION_STRING: 'InstrumentationKey=00000000-0000-4000-8000-000000000000;IngestionEndpoint=http://localhost:8091/'
     ports:
       - '8080:8080'
     depends_on:

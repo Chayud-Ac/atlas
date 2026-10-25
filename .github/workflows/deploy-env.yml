@@ -49,6 +49,18 @@ jobs:
           echo "RG=$(jq -r --arg env "$ENVIRONMENT" '.environments[$env].resourceGroup' \
             infra/config/environments.json)" >> "$GITHUB_ENV"
 
+      # A stage with alerts needs somewhere to send them (bootstrap.sh sets ALERT_EMAIL). Checked
+      # before anything is deployed, so a missing secret doesn't leave half a deploy behind.
+      - name: Check the alert email
+        env:
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: |
+          alerts="$(jq -r --arg env "$ENVIRONMENT" '.environments[$env].alerts' infra/config/environments.json)"
+          if [[ "$alerts" == "true" && -z "$ALERT_EMAIL" ]]; then
+            echo "::error::$ENVIRONMENT has alerts but no ALERT_EMAIL secret. Run scripts/bootstrap.sh $ENVIRONMENT."
+            exit 1
+          fi
+
       - name: Platform (platform.bicep)
         env:
           DB_ADMIN_GROUP_OBJECT_ID: ${{ secrets.DB_ADMIN_GROUP_OBJECT_ID }}
@@ -83,7 +95,7 @@ jobs:
                 exit 0
                 ;;
               Failed | Stopped | Degraded)
-                echo "::error::$execution ended $status. Its logs are in log-atlas-$ENVIRONMENT (ContainerAppConsoleLogs)."
+                echo "::error::$execution ended $status. Its logs are in log-atlas-shared (ContainerAppConsoleLogs, where JobName is $job)."
                 exit 1
                 ;;
             esac
@@ -98,12 +110,13 @@ jobs:
           ENTRA_TENANT_ID: ${{ secrets.ENTRA_TENANT_ID }}
           ENTRA_WEB_CLIENT_ID: ${{ secrets.ENTRA_WEB_CLIENT_ID }}
           ENTRA_API_CLIENT_ID: ${{ secrets.ENTRA_API_CLIENT_ID }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
         run: |
           fqdn="$(az deployment group create --resource-group "$RG" --name apps \
             --template-file infra/apps.bicep \
             --parameters environmentName="$ENVIRONMENT" imageTag="$SHA" \
               entraTenantId="$ENTRA_TENANT_ID" webClientId="$ENTRA_WEB_CLIENT_ID" \
-              apiClientId="$ENTRA_API_CLIENT_ID" \
+              apiClientId="$ENTRA_API_CLIENT_ID" alertEmail="$ALERT_EMAIL" \
             --query properties.outputs.webFqdn.value --output tsv)"
           echo "url=https://$fqdn" >> "$GITHUB_OUTPUT"
 

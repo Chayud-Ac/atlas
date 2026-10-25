@@ -132,3 +132,42 @@ module postgresAdmins 'modules/postgres-admins.bicep' = {
   }
   dependsOn: [database, allowAzureServices]
 }
+
+// ---- Telemetry (spec §11.1): this stage's Application Insights and Postgres logs ----
+// Container Apps logs from every stage stay in log-atlas-shared, next to the environment (ADR 0017).
+
+resource logs 'Microsoft.OperationalInsights/workspaces@2026-03-01' = {
+  name: 'log-atlas-${environmentName}'
+  location: location
+  tags: tags
+  properties: {
+    sku: { name: 'PerGB2018' }
+    retentionInDays: env.logRetentionDays
+  }
+}
+
+resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+  name: 'appi-atlas-${environmentName}'
+  location: location
+  tags: tags
+  kind: 'web'
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logs.id
+    // The browser SDK can't use Entra ID, so local auth stays on. The connection string only
+    // lets you send telemetry, and the web app publishes it in /config.json anyway.
+    DisableLocalAuth: false
+  }
+}
+
+// The same API version as shared.bicep's diagnostic setting.
+#disable-next-line use-recent-api-versions
+resource postgresLogs 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'to-log-analytics'
+  scope: postgres
+  properties: {
+    workspaceId: logs.id
+    // The server log: connections, authentication failures and errors.
+    logs: [{ category: 'PostgreSQLLogs', enabled: true }]
+  }
+}

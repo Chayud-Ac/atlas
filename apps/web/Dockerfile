@@ -24,7 +24,7 @@ USER root
 RUN apk upgrade --no-cache
 USER 101
 # Only these environment variables are substituted into the templates.
-ENV NGINX_ENVSUBST_FILTER="^(ATLAS_ENV|AUTH_[A-Z_]+|API_UPSTREAM)$"
+ENV NGINX_ENVSUBST_FILTER="^(ATLAS_ENV|AUTH_[A-Z_]+|API_UPSTREAM|APPLICATIONINSIGHTS_CONNECTION_STRING|TELEMETRY_ORIGIN)$"
 COPY --chmod=755 apps/web/nginx/19-atlas-env.envsh /docker-entrypoint.d/
 COPY apps/web/nginx/default.conf.template /etc/nginx/templates/
 COPY apps/web/nginx/security-headers.conf.template /etc/nginx/templates/atlas/

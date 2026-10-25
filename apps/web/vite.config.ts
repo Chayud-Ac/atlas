@@ -24,6 +24,7 @@ export default defineConfig({
             { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
             { name: 'msal', test: /node_modules[\\/]@azure[\\/]/ },
             { name: 'fluent', test: /node_modules[\\/](@fluentui|@griffel|tabster|@floating-ui)/ },
+            { name: 'telemetry', test: /node_modules[\\/](@microsoft|@nevware21)[\\/]/ },
             { name: 'vendor', test: /node_modules/ },
           ],
         },

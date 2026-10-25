@@ -9,6 +9,7 @@ export interface AuditEvent {
   entityId: string | null;
   data?: Record<string, unknown>;
   requestId?: string | null;
+  traceId?: string | null;
 }
 
 export interface AuditRepository {
@@ -25,6 +26,7 @@ export function createPgAuditRepository(db: Executor): AuditRepository {
         entityId: event.entityId,
         data: event.data ?? {},
         requestId: event.requestId ?? null,
+        traceId: event.traceId ?? null,
       });
     },
   };

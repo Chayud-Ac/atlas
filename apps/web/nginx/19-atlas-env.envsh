@@ -15,3 +15,22 @@
 # https://login.microsoftonline.com/<tenant> gives https://login.microsoftonline.com
 AUTH_ORIGIN=$(printf '%s' "$AUTH_AUTHORITY" | sed -E 's#^(https?://[^/]+).*#\1#')
 export AUTH_ORIGIN
+
+# Optional: without it (locally) the app sends no telemetry. It's written into JSON and into the
+# CSP header, so only the characters a connection string uses are allowed. Exported even when
+# empty: envsubst leaves an unset variable's ${NAME} in the file.
+APPLICATIONINSIGHTS_CONNECTION_STRING="${APPLICATIONINSIGHTS_CONNECTION_STRING:-}"
+case "$APPLICATIONINSIGHTS_CONNECTION_STRING" in
+  *[!A-Za-z0-9=\;:/._-]*)
+    echo "APPLICATIONINSIGHTS_CONNECTION_STRING contains unexpected characters" >&2
+    exit 1
+    ;;
+esac
+export APPLICATIONINSIGHTS_CONNECTION_STRING
+
+# The browser SDK posts to the connection string's IngestionEndpoint, so the CSP must allow its
+# origin: ...;IngestionEndpoint=https://japaneast-1.in.applicationinsights.azure.com/;... gives
+# https://japaneast-1.in.applicationinsights.azure.com
+TELEMETRY_ORIGIN=$(printf '%s' "$APPLICATIONINSIGHTS_CONNECTION_STRING" |
+  sed -n -E 's#.*IngestionEndpoint=(https?://[^/;]+).*#\1#p')
+export TELEMETRY_ORIGIN

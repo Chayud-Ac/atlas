@@ -29,5 +29,5 @@
   - Vite's `html.cspNonce` and Fluent's `createDOMRenderer(document, { styleElementAttributes: { nonce } })` both accept a nonce.
   - About 20 lines plus tests.
 - **Until it's switched off with `z.config({ jitless: true })` (M4b), zod's probe logs one CSP violation per page load.** M4b's E2E tests fail on any violation.
-- **Application Insights (M7) adds its ingestion origin to `connect-src`.**
+- **Application Insights adds its ingestion origin to `connect-src`.** nginx derives it from the connection string at start (M7).
 - **A config change needs a container restart, not a rebuild.**

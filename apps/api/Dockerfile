@@ -39,4 +39,7 @@ COPY apps/api/drizzle apps/api/drizzle
 
 USER node
 EXPOSE 3000
-CMD ["node", "apps/api/dist/server.js"]
+# Telemetry first (spec §11.1): the loader lets OpenTelemetry patch ES modules, and telemetry.js
+# starts it before server.js imports anything. Without APPLICATIONINSIGHTS_CONNECTION_STRING it
+# stays off. The migration job runs its own command, without either.
+CMD ["node", "--import", "@azure/monitor-opentelemetry/loader", "--import", "./apps/api/dist/telemetry.js", "apps/api/dist/server.js"]

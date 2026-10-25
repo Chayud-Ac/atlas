@@ -1,9 +1,10 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Writable } from 'node:stream';
+import { ROOT_CONTEXT, TraceFlags, trace } from '@opentelemetry/api';
 import express from 'express';
 import request from 'supertest';
 import { describe, expect, it } from 'vitest';
-import { createLogger, genReqId, httpLogger } from './logging.js';
+import { createLogger, genReqId, httpLogger, traceIdOf } from './logging.js';
 
 function captureLogs() {
   const lines: string[] = [];
@@ -106,5 +107,21 @@ describe('genReqId', () => {
   it('replaces ids longer than 128 characters', () => {
     const { req, res } = fakeExchange('a'.repeat(129));
     expect(genReqId(req, res)).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+describe('traceIdOf', () => {
+  it('returns the trace id of the active span', () => {
+    const ctx = trace.setSpanContext(ROOT_CONTEXT, {
+      traceId: '0af7651916cd43dd8448eb211c80319c',
+      spanId: 'b7ad6b7169203331',
+      traceFlags: TraceFlags.SAMPLED,
+    });
+    expect(traceIdOf(ctx)).toBe('0af7651916cd43dd8448eb211c80319c');
+  });
+
+  it('returns null when there is no trace (telemetry is off)', () => {
+    expect(traceIdOf()).toBeNull();
+    expect(traceIdOf(ROOT_CONTEXT)).toBeNull();
   });
 });

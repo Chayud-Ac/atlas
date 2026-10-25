@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Previews what merging a pull request would change in Azure (spec §15, the `what-if` job).
 # Each environment's templates are compared using the parameters of its last deployment, so the
-# preview shows what the template change itself does. Output is redacted: this repo is public,
-# and Azure's output is full of IDs.
+# preview shows what the template change itself does. Output is redacted (GUIDs and email
+# addresses): this repo is public, and Azure's output is full of IDs.
 #
 #   scripts/what-if.sh   (az signed in as an identity with "Atlas What-If Reader")
 set -euo pipefail
@@ -10,10 +10,11 @@ set -euo pipefail
 CONFIG="$(cd "$(dirname "$0")/.." && pwd)/infra/config/environments.json"
 INFRA="$(dirname "$CONFIG")/.."
 GUID='[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
+EMAIL='[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
 export AZURE_CORE_NO_COLOR=1
 failed=0
 
-redact() { sed -E "s/$GUID/<redacted>/g"; }
+redact() { sed -E "s/$GUID/<redacted>/g; s/$EMAIL/<redacted>/g"; }
 
 # Usage: what_if <title> <resource group> <template> [parameters file]
 what_if() {

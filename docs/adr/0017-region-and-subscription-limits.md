@@ -39,6 +39,6 @@ These were checked before the first deployment (M5) and during M6:
 
 - **Isolation between stages is by identity, not by network.** A UAT app could reach prod's Postgres over the network, but its identity has no role there, so it can't sign in. A company would give prod its own environment, and usually its own subscription (ADR 0012).
 - **A change to the shared environment affects every stage at once.** It's deployed by `shared.bicep`, before any stage.
-- **App logs from all stages land in one workspace,** `log-atlas-shared`, with one retention period. Per-stage telemetry (Application Insights) comes with M7.
+- **App logs from all stages land in one workspace,** `log-atlas-shared`, with one retention period. Each stage's Application Insights and Postgres logs go to its own `log-atlas-{env}` (M7).
 - **Moving to the shared environment meant recreating dev's environment.** Dev was down for about 30 minutes in M6.
 - **Latency doesn't matter for this demo.** A Thai company would pick a Southeast Asia region, and a company subscription wouldn't have either limit.
