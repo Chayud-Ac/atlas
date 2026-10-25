@@ -5,7 +5,7 @@
 # Build from the repo root: docker build -f apps/api/Dockerfile .
 
 # ---- Build: install every dependency and compile the TypeScript ----
-FROM node:24.21.0-alpine3.24 AS build
+FROM node:24.22.1-alpine3.24 AS build
 WORKDIR /app
 
 # Only the manifests first, so `npm ci` stays cached until a dependency changes. --parents
@@ -19,7 +19,7 @@ COPY apps/api apps/api
 RUN npx tsc --build apps/api
 
 # ---- Runtime: production dependencies and compiled code, run as a non-root user ----
-FROM node:24.21.0-alpine3.24
+FROM node:24.22.1-alpine3.24
 ENV NODE_ENV=production
 # Stack traces show TypeScript line numbers, from the .js.map files tsc writes.
 ENV NODE_OPTIONS=--enable-source-maps
