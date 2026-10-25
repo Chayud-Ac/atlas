@@ -17,6 +17,12 @@ updates:
       # The runtime is Node 24, so its types stay on 24.
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+      # Must match the versions @azure/monitor-opentelemetry depends on. A second copy means a
+      # second ESM hook, and Express goes untraced. Move them by hand when it moves.
+      - dependency-name: '@opentelemetry/instrumentation'
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
+      - dependency-name: '@opentelemetry/instrumentation-express'
+        update-types: ['version-update:semver-minor', 'version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
