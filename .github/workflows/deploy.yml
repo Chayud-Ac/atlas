@@ -18,11 +18,8 @@ on:
 permissions:
   contents: read
 
-# One deploy at a time. A newer run waits rather than cancelling one halfway through.
-concurrency:
-  group: deploy
-  cancel-in-progress: false
-
+# No lock on the whole run: the shared job and each stage's deploy (deploy-env.yml) have their
+# own, so a run waiting for UAT approval doesn't hold up a later merge's dev deploy.
 jobs:
   ci:
     if: inputs.sha == ''
@@ -39,6 +36,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: shared
+    # Two runs deploying shared.bicep at once would clash: both create the deployment `shared`.
+    concurrency:
+      group: deploy-shared
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write

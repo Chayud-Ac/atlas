@@ -23,6 +23,11 @@ jobs:
     environment:
       name: ${{ inputs.environment }}
       url: ${{ steps.apps.outputs.url }}
+    # One deploy per environment at a time. A newer run waits rather than cancelling one halfway
+    # through, and GitHub keeps only the newest waiting job, so the latest merge wins.
+    concurrency:
+      group: deploy-${{ inputs.environment }}
+      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
